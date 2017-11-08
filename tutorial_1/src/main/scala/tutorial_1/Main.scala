@@ -1,6 +1,6 @@
 package tutorial_1
 
-import java.io.{File, StringReader}
+import java.io._
 
 import org.xml.sax._
 import org.xml.sax.helpers.DefaultHandler
@@ -8,6 +8,10 @@ import javax.xml.parsers.SAXParserFactory
 
 import scala.collection.immutable.ListMap
 import scala.collection.mutable.ListBuffer
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, Future}
+import scala.concurrent.ExecutionContext.Implicits.global
+
 
 object Main extends App {
 
@@ -19,30 +23,51 @@ object Main extends App {
 
   val reader = initXMLReader(new ReutersHandler)
 
-  val xml = new InputSource(new StringReader("<?xml version=\"1.0\"?>\n<company>\n\t<staff>\n\t\t<firstname>yong</firstname>\n\t\t<lastname>mook kim</lastname>\n\t\t<nickname>mkyong</nickname>\n\t\t<salary>100000</salary>\n\t</staff>\n\t<staff>\n\t\t<firstname>low</firstname>\n\t\t<lastname>yin fong</lastname>\n\t\t<nickname>fong fong</nickname>\n\t\t<salary>200000</salary>\n\t</staff>\n</company>"))
+  val REFERENCE_CORPUS = "/home/lukas/git-projects/ms_2017_18/tutorial_1/reference-corpus"
 
-  reader.parse(xml)
+  def parseXml(xml: File) = reader.parse(new InputSource(new InputStreamReader(new FileInputStream(xml),"UTF-8")))
+
+  def getListOfXML(dir: File) = dir.listFiles.par.filter(f => f.isFile && (f.getName.endsWith(".xml"))).toList
+
+  /*
+  val futures: List[Future[Unit]] =
+    getListOfXML(new File(REFERENCE_CORPUS)).par.map(file => Future(parseXml(file))).toList
+
+  Await.ready(Future.sequence(futures), Duration.Inf)
+  */
+  getListOfXML(new File(REFERENCE_CORPUS)).map(file => parseXml(file))
 
   val handler = reader.getContentHandler.asInstanceOf[ReutersHandler]
 
   println(s"Anzahl Docs: ${handler.docs}")
-  println(s"Anzahl Words: ${handler.count(handler.words, false)}")
+  println(s"Anzahl Wörter: ${handler.count(handler.words, distinct = false)}")
   println(s"Anzahl verschiedener Wörter: ${handler.count(handler.words)}")
 
-  println(s"Anzahl Topics: ${handler.count(handler.topics, false)}")
+  println(s"Anzahl Topics: ${handler.count(handler.topics, distinct = false)}")
   println(s"Anzahl verschiedener Topics: ${handler.count(handler.topics)}")
-  println(s"Anzahl People: ${handler.count(handler.people, false)}")
+  println(s"Anzahl People: ${handler.count(handler.people, distinct = false)}")
   println(s"Anzahl verschiedener People: ${handler.count(handler.people)}")
-  println(s"Anzahl Places: ${handler.count(handler.places, false)}")
+  println(s"Anzahl Places: ${handler.count(handler.places, distinct = false)}")
   println(s"Anzahl verschiedener Places: ${handler.count(handler.places)}")
 
   println(s"Häufigste Wörter:")
   handler.getTopNWords(30, handler.words).toList foreach { case (word, count) =>
-    println(s"${word} ${count}")
+    println(s"$word $count")
   }
 }
 
+case class Result(docs: Int, words: List[String], topics: List[String], people: List[String], places: List[String])
+
 class ReutersHandler extends DefaultHandler {
+
+  val REUTERS = "REUTERS"
+  val TOPICS = "TOPICS"
+  val PEOPLE = "PEOPLE"
+  val PLACES = "PLACES"
+  val TITLE = "TITLE"
+  val BODY = "BODY"
+  val TEXT = "TEXT"
+  val D = "D"
 
   var docs = 0
   var words = ListBuffer[String]()
@@ -51,18 +76,19 @@ class ReutersHandler extends DefaultHandler {
   var people = ListBuffer[String]()
   var places = ListBuffer[String]()
 
-  var tag: String = null
-  var tagType: String = null
 
-  override def startElement(uri: String, localName: String, qName: String, attributes: Attributes) =
+  var tag: String = _
+  var tagType: String = _
+
+  override def startElement(uri: String, localName: String, qName: String, attributes: Attributes): Unit =
     qName match {
-      case "REUTERS" => docs += 1
-      case "TOPICS" => tagType = "topics"
-      case "PEOPLE" => tagType = "people"
-      case "PLACES" => tagType = "places"
-      case "TITLE" | "BODY" => tag = "text"
-      case "D" => tag = "d"
-      case _ => println("lewi")
+      case REUTERS => docs += 1
+      case TOPICS => tagType = TOPICS
+      case PLACES => tagType = PLACES
+      case PEOPLE => tagType = PEOPLE
+      case TITLE | BODY => tag = TEXT
+      case D => tag = D
+      case _ =>
     }
 
   private def addWords(s: String) =
@@ -72,35 +98,37 @@ class ReutersHandler extends DefaultHandler {
     list += s
 
   private def tokenize(s: String) = {
-    val regex = "[,.:;'\"\\?\\-!\\(\\)]".r
+    val regex = "[,.:;'<>\"\\?\\-!\\(\\)\\d]".r
     s.toLowerCase.split("[\\s]")
-      .map(word => regex.replaceAllIn(word.trim.toLowerCase, ""))
-      .filter(word => !word.isEmpty)
+      //.par.map(word => regex.replaceAllIn(word.trim.toLowerCase, ""))
+      //.filter(word => !word.isEmpty)
   }
 
   def getTopNWords(n: Int, xs: Seq[String]): Map[String, Int] =
     ListMap(getWordCounts(xs).toSeq.sortWith(_._2 > _._2): _*).take(n)
 
   private def getWordCounts(xs: Seq[String]): Map[String, Int] =
-    Map(xs.distinct.map(x => x -> xs.count(_ == x)): _*)
+    Map(xs.distinct.par.map(x => x -> xs.count(_ == x)).toList: _*)
 
   def count(xs: Seq[String], distinct: Boolean = true): Int =
-    distinct match {
-      case true => xs.distinct.size
-      case _ => xs.size
+    if (distinct) {
+      xs.distinct.size
+    } else {
+      xs.size
     }
 
-  override def characters(ch: Array[Char], start: Int, length: Int) =
+  override def characters(ch: Array[Char], start: Int, length: Int): Unit =
     tag match {
-      case "text" => addWords(new String(ch, start, length))
-      case "d" => tagType match {
-        case "topics" => addElements(topics, new String(ch, start, length))
-        case "people" => addElements(people, new String(ch, start, length))
-        case _ => addElements(places, new String(ch, start, length))
+      case TEXT => addWords(new String(ch, start, length))
+      case D => tagType match {
+        case TOPICS => addElements(topics, new String(ch, start, length))
+        case PEOPLE => addElements(people, new String(ch, start, length))
+        case PLACES => addElements(places, new String(ch, start, length))
+        case _ =>
       }
-      case _ => println("element unknown")
+      case _ =>
     }
 
-  override def endElement(uri: String, localName: String, qName: String) =
+  override def endElement(uri: String, localName: String, qName: String): Unit =
     tag = null
 }
