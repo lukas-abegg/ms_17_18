@@ -11,6 +11,7 @@ import scala.collection.mutable.ListBuffer
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.util.{Failure, Success}
 
 
 object Main extends App {
@@ -23,37 +24,44 @@ object Main extends App {
 
   val reader = initXMLReader(new ReutersHandler)
 
-  val REFERENCE_CORPUS = "/home/lukas/git-projects/ms_2017_18/tutorial_1/reference-corpus"
+  val REFERENCE_CORPUS = "/Users/lukas/git-projects/ms_2017_18/tutorial_1/reference-corpus"
 
-  def parseXml(xml: File) = reader.parse(new InputSource(new InputStreamReader(new FileInputStream(xml),"UTF-8")))
+  def parseXml(xml: File) = {
+    reader.parse(new InputSource(new InputStreamReader(new FileInputStream(xml), "UTF-8")))
+    1
+  }
 
   def getListOfXML(dir: File) = dir.listFiles.par.filter(f => f.isFile && (f.getName.endsWith(".xml"))).toList
 
-  /*
-  val futures: List[Future[Unit]] =
+  val futures: List[Future[Int]] =
     getListOfXML(new File(REFERENCE_CORPUS)).par.map(file => Future(parseXml(file))).toList
 
-  Await.ready(Future.sequence(futures), Duration.Inf)
-  */
-  getListOfXML(new File(REFERENCE_CORPUS)).map(file => parseXml(file))
+  //getListOfXML(new File(REFERENCE_CORPUS)).map(file => parseXml(file))
 
-  val handler = reader.getContentHandler.asInstanceOf[ReutersHandler]
+  val f = Future.sequence(futures)
+    f.onComplete {
+    case Success(s) =>
+      println(s.length)
+      val handler = reader.getContentHandler.asInstanceOf[ReutersHandler]
 
-  println(s"Anzahl Docs: ${handler.docs}")
-  println(s"Anzahl Wörter: ${handler.count(handler.words, distinct = false)}")
-  println(s"Anzahl verschiedener Wörter: ${handler.count(handler.words)}")
+      println(s"Anzahl Docs: ${handler.docs}")
+      println(s"Anzahl Wörter: ${handler.count(handler.words, distinct = false)}")
+      println(s"Anzahl verschiedener Wörter: ${handler.count(handler.words)}")
 
-  println(s"Anzahl Topics: ${handler.count(handler.topics, distinct = false)}")
-  println(s"Anzahl verschiedener Topics: ${handler.count(handler.topics)}")
-  println(s"Anzahl People: ${handler.count(handler.people, distinct = false)}")
-  println(s"Anzahl verschiedener People: ${handler.count(handler.people)}")
-  println(s"Anzahl Places: ${handler.count(handler.places, distinct = false)}")
-  println(s"Anzahl verschiedener Places: ${handler.count(handler.places)}")
+      println(s"Anzahl Topics: ${handler.count(handler.topics, distinct = false)}")
+      println(s"Anzahl verschiedener Topics: ${handler.count(handler.topics)}")
+      println(s"Anzahl People: ${handler.count(handler.people, distinct = false)}")
+      println(s"Anzahl verschiedener People: ${handler.count(handler.people)}")
+      println(s"Anzahl Places: ${handler.count(handler.places, distinct = false)}")
+      println(s"Anzahl verschiedener Places: ${handler.count(handler.places)}")
 
-  println(s"Häufigste Wörter:")
-  handler.getTopNWords(30, handler.words).toList foreach { case (word, count) =>
-    println(s"$word $count")
+      println(s"Häufigste Wörter:")
+      handler.getTopNWords(30, handler.words).toList foreach { case (word, count) =>
+        println(s"$word $count")
+      }
+    case Failure(e) => e.printStackTrace()
   }
+
 }
 
 case class Result(docs: Int, words: List[String], topics: List[String], people: List[String], places: List[String])
@@ -100,8 +108,8 @@ class ReutersHandler extends DefaultHandler {
   private def tokenize(s: String) = {
     val regex = "[,.:;'<>\"\\?\\-!\\(\\)\\d]".r
     s.toLowerCase.split("[\\s]")
-      //.par.map(word => regex.replaceAllIn(word.trim.toLowerCase, ""))
-      //.filter(word => !word.isEmpty)
+    //.par.map(word => regex.replaceAllIn(word.trim.toLowerCase, ""))
+    //.filter(word => !word.isEmpty)
   }
 
   def getTopNWords(n: Int, xs: Seq[String]): Map[String, Int] =
