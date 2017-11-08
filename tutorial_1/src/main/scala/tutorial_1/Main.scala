@@ -28,20 +28,23 @@ object Main extends App {
 
   def parseXml(xml: File) = {
     reader.parse(new InputSource(new InputStreamReader(new FileInputStream(xml), "UTF-8")))
-    1
   }
 
   def getListOfXML(dir: File) = dir.listFiles.par.filter(f => f.isFile && (f.getName.endsWith(".xml"))).toList
 
-  val futures: List[Future[Int]] =
+  /*
+  val futures: List[Future[Unit]] =
     getListOfXML(new File(REFERENCE_CORPUS)).par.map(file => Future(parseXml(file))).toList
+  */
 
-  //getListOfXML(new File(REFERENCE_CORPUS)).map(file => parseXml(file))
+  getListOfXML(new File(REFERENCE_CORPUS)).map(file => parseXml(file))
 
-  val f = Future.sequence(futures)
+  /*val f = Future.sequence(futures)
     f.onComplete {
     case Success(s) =>
       println(s.length)
+      */
+
       val handler = reader.getContentHandler.asInstanceOf[ReutersHandler]
 
       println(s"Anzahl Docs: ${handler.docs}")
@@ -56,11 +59,12 @@ object Main extends App {
       println(s"Anzahl verschiedener Places: ${handler.count(handler.places)}")
 
       println(s"Häufigste Wörter:")
-      handler.getTopNWords(30, handler.words).toList foreach { case (word, count) =>
-        println(s"$word $count")
+      handler.getTopNWords(20, handler.words).toList foreach {
+        case (word, count) => println(s"$word $count")
       }
+  /*
     case Failure(e) => e.printStackTrace()
-  }
+  }*/
 
 }
 
@@ -106,10 +110,10 @@ class ReutersHandler extends DefaultHandler {
     list += s
 
   private def tokenize(s: String) = {
-    val regex = "[,.:;'<>\"\\?\\-!\\(\\)\\d]".r
+    val regex = "[,.:;'<>\"\\?\\-!\\(\\)\\d]"
     s.toLowerCase.split("[\\s]")
-    //.par.map(word => regex.replaceAllIn(word.trim.toLowerCase, ""))
-    //.filter(word => !word.isEmpty)
+    .par.map(_.trim.toLowerCase)
+    .filter(x => !x.matches(regex) && !x.isEmpty).toList
   }
 
   def getTopNWords(n: Int, xs: Seq[String]): Map[String, Int] =
