@@ -2,139 +2,181 @@ package tutorial_1
 
 import java.io._
 
-import org.xml.sax._
-import org.xml.sax.helpers.DefaultHandler
-import javax.xml.parsers.SAXParserFactory
-
-import scala.collection.immutable.ListMap
-import scala.collection.mutable.ListBuffer
-import scala.concurrent.duration.Duration
-import scala.concurrent.{Await, Future}
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.util.{Failure, Success, Try}
-import scalaz._
-import Scalaz._
-
+import scala.concurrent.Future
 import scala.io.Source
+import scala.util.{Failure, Success}
+import scalaz.Scalaz._
 
 
 object Main extends App {
 
-  val BASE_PATH = "/home/lukas/git-projects"
-  val REFERENCE_CORPUS = BASE_PATH + "/home/lukas/git-projects"
-  val REUTERS_CORPUS = BASE_PATH + "/ms_2017_18/tutorial_1/reuters-corpus"
+  private lazy val BASE_PATH = "/home/lukas/git-projects"
+  private lazy val REFERENCE_CORPUS = BASE_PATH + "/ms_2017_18/tutorial_1/reference-corpus"
+  private lazy val REUTERS_CORPUS = BASE_PATH + "/ms_2017_18/tutorial_1/reuters-corpus"
 
+  private def getListOfXML(dir: File): List[File] =
+    dir.listFiles.filter(f => f.isFile && f.getName.endsWith(".xml")).toList
 
+  private def parseXml(xml: File): ParsedResult = {
+    val handler = new ReutersHandler(new ParsedResult)
+    handler.parse(Source.fromFile(xml))
+  }
 
-  def parseXml(xml: File): Unit =
-    for (line <- Source.fromFile(xml).getLines) {
+  private def getParsedResults: List[Future[ParsedResult]] =
+    getListOfXML(new File(REFERENCE_CORPUS))
+      .map(file => Future(parseXml(file)))
 
+  private def mergeParsedResults(results: List[ParsedResult]): ParsedResult =
+    results.reduceLeft { (m, x) =>
+      println(ParsedResult(m.docs + x.docs, m.words |+| x.words, m.topics |+| x.topics, m.people |+| x.people, m.places |+| x.places))
+      ParsedResult(m.docs + x.docs, m.words |+| x.words, m.topics |+| x.topics, m.people |+| x.people, m.places |+| x.places)
     }
 
-  def getListOfXML(dir: File): List[File] =
-    dir.listFiles.filter(f => f.isFile && (f.getName.endsWith(".xml"))).toList
+  private def getTopNWords(n: Int, xs: Map[String, Int]): Seq[(String, Int)] =
+    xs.toSeq.sortWith(_._2 > _._2).take(n)
 
-  /*
-  val futures: List[Future[Unit]] =
-    getListOfXML(new File(REFERENCE_CORPUS)).par.map(file => Future(parseXml(file))).toList
-  */
+  private def count(xs: Map[String, Int], distinct: Boolean = true): Int =
+    if (distinct) {
+      xs.size
+    } else {
+      xs.foldLeft(0)(_ + _._2)
+    }
 
-  getListOfXML(new File(REUTERS_CORPUS)).map(file => parseXml(file))
+  val f = Future.sequence(getParsedResults)
+  f.onComplete {
+    case Success(results) =>
+      val result = mergeParsedResults(results)
 
-  /*val f = Future.sequence(futures)
-    f.onComplete {
-    case Success(s) =>
-      println(s.length)
-      */
+      println(s"Amount of docs: ${result.docs}")
+      println(s"Amount of words: ${count(result.words, distinct = false)} (distinct: ${count(result.words)})")
 
-      val handler = reader.getContentHandler.asInstanceOf[ReutersHandler]
-
-      println(s"Amount of docs: ${handler.docs}")
-      println(s"Amount of words: ${handler.count(handler.words, distinct = false)} (distinct: ${handler.count(handler.words)})")
-
-      println(s"Amount of topics: ${handler.count(handler.topics, distinct = false)} (distinct: ${handler.count(handler.topics)})")
-      println(s"Amount of places: ${handler.count(handler.places, distinct = false)} (distinct: ${handler.count(handler.places)})")
-      println(s"Amount of people: ${handler.count(handler.people, distinct = false)} (distinct: ${handler.count(handler.people)})")
+      println(s"Amount of topics: ${count(result.topics, distinct = false)} (distinct: ${count(result.topics)})")
+      println(s"Amount of places: ${count(result.places, distinct = false)} (distinct: ${count(result.places)})")
+      println(s"Amount of people: ${count(result.people, distinct = false)} (distinct: ${count(result.people)})")
 
       println(s"Most frequent words:")
-      handler.getTopNWords(20, handler.words).toList foreach {
+      getTopNWords(20, result.words).toList foreach {
         case (word, count) => println(s"$word $count")
       }
-  /*
+
     case Failure(e) => e.printStackTrace()
-  }*/
+  }
 
 }
 
 case class ParsedResult(
-                         docs: Int = 0,
-                         words: Map[String, Int] = Map.empty[String, Int],
-                         topics: Map[String, Int] = Map.empty[String, Int],
-                         people: Map[String, Int] = Map.empty[String, Int],
-                         places: Map[String, Int] = Map.empty[String, Int]
+                         var docs: Int = 0,
+                         var words: Map[String, Int] = Map.empty[String, Int],
+                         var topics: Map[String, Int] = Map.empty[String, Int],
+                         var people: Map[String, Int] = Map.empty[String, Int],
+                         var places: Map[String, Int] = Map.empty[String, Int]
                        )
 
-class ReutersHandler(result: ParsedResult) extends DefaultHandler {
+case class Prefix(prefix: String) {
+  def unapply(x: String): Option[String] = if (x startsWith prefix) Some(x.substring(prefix.length)) else None
+}
 
-  val REUTERS = "REUTERS"
-  val TOPICS = "TOPICS"
-  val PEOPLE = "PEOPLE"
-  val PLACES = "PLACES"
-  val UNKNOWN = "UNKNOWN"
-  val TITLE = "TITLE"
-  val BODY = "BODY"
-  val TEXT = "TEXT"
-  val D = "D"
+case class PrefixInside(prefix: String) {
+  def unapply(x: String): Option[String] = if (x contains prefix) Some(x.substring(x.indexOf(prefix) + prefix.length)) else None
+}
 
-  var tag: String = _
-  var tagType: String = _
+case class Suffix(suffix: String) {
+  def unapply(x: String): Option[String] = if (x endsWith suffix) Some(x.substring(0, x.length - suffix.length)) else None
+}
 
-  override def startElement(uri: String, localName: String, qName: String, attributes: Attributes): Unit =
-    qName match {
-      case REUTERS => result.docs += 1
-      case TOPICS => tagType = TOPICS
-      case PLACES => tagType = PLACES
-      case PEOPLE => tagType = PEOPLE
-      case TITLE | BODY => tag = TEXT
-      case D => tag = D
-      case _ => tagType = UNKNOWN
-    }
+class ReutersHandler(result: ParsedResult) {
 
-  private def addWords(list: Map[String, Int], s: String): Map[String, Int] =
-    list |+| tokenize(s).foldLeft(Map.empty[String, Int]) { (m, x) => m + ((x, m.getOrElse(x, 0) + 1)) }
+  private lazy val prefREUTERS = Prefix("<REUTERS>")
 
-  private def addElements(list: Map[String, Int], s: String): Map[String, Int] =
-    list |+| tokenize(s).foldLeft(Map.empty[String, Int]) { (m, x) => m + ((x, m.getOrElse(x, 0) + 1)) }
+  private lazy val prefTOPICS = Prefix("<TOPICS>")
+  private lazy val suffTOPICS = Suffix("</TOPICS>")
+  private lazy val prefPEOPLE = Prefix("<PEOPLE>")
+  private lazy val suffPEOPLE = Suffix("</PEOPLE>")
+  private lazy val prefPLACES = Prefix("<PLACES>")
+  private lazy val suffPLACES = Suffix("</PLACES>")
 
-  private def tokenize(s: String) =
-    //val regex = "[,.:;'<>\"\\?\\-!\\(\\)\\d]"
-    s.toLowerCase.split("\\s")
-      .filter(!_.isEmpty).toList
-    //.par.map(_.trim.toLowerCase)
-    //.filter(x => !x.matches(regex) && !x.isEmpty).toList
+  private lazy val prefTITLE = PrefixInside("<TITLE>")
+  private lazy val suffTITLE = Suffix("</TITLE>")
+  private lazy val prefBODY = Prefix("<BODY>")
+  private lazy val suffBODY = Suffix("</BODY>")
 
-  def getTopNWords(n: Int, xs: scala.collection.immutable.Map[String, Int]): Seq[(String, Int)] =
-    xs.toSeq.sortWith(_._2 > _._2).take(n)
+  private lazy val TITLE = "TITLE"
+  private lazy val BODY = "BODY"
+  private lazy val TOPICS = "TOPICS"
+  private lazy val PLACES = "PLACES"
+  private lazy val PEOPLE = "PEOPLE"
 
-  def count(xs: Map[String, Int], distinct: Boolean = true): Int =
-    if (distinct) {
-      xs.size
-    } else {
-      xs.foldLeft(0)(_+_._2)
-    }
+  private var xmlTag: String = _
 
-  override def characters(ch: Array[Char], start: Int, length: Int): Unit =
-    tag match {
-      case TEXT => words = addWords(words, new String(ch, start, length))
-      case D => tagType match {
-        case TOPICS => topics = addElements(topics, new String(ch, start, length))
-        case PEOPLE => people = addElements(people, new String(ch, start, length))
-        case PLACES => places = addElements(places, new String(ch, start, length))
+  def parse(source: io.BufferedSource): ParsedResult = {
+    for (line <- source.getLines) {
+      line match {
+        case prefREUTERS(_) => result.docs += 1
+        case prefTOPICS(s) => parseSuffixDContent(TOPICS, s)
+        case prefPLACES(s) => parseSuffixDContent(PLACES, s)
+        case prefPEOPLE(s) => parseSuffixDContent(PEOPLE, s)
+        case prefTITLE(s) => parseSuffixText(TITLE, s)
+        case prefBODY(s) => parseSuffixText(BODY, s)
+        case s if xmlTag != null => xmlTag match {
+          case TITLE | BODY => parseSuffixText(xmlTag, s)
+          case TOPICS | PLACES | PEOPLE => parseSuffixDContent(xmlTag, s)
+        }
         case _ => ;
       }
-      case _ => ;
+    }
+    result
+  }
+
+
+  var dContent: String = _
+
+  private def parseSuffixDContent(tag: String, s: String): Unit =
+    dContent + s match {
+      case suffTOPICS(d) => parseDTags(tag, d)
+      case suffPLACES(d) => parseDTags(tag, d)
+      case suffPEOPLE(d) => parseDTags(tag, d)
+      case _ =>
+        xmlTag = tag
+        dContent += s
     }
 
-  override def endElement(uri: String, localName: String, qName: String): Unit =
-    tag = null
+  private def parseDTags(tag: String, s: String): Unit = {
+    tag match {
+      case TOPICS => result.topics = addElements(result.topics, generateElements(s))
+      case PLACES => result.places = addElements(result.places, generateElements(s))
+      case PEOPLE => result.people = addElements(result.people, generateElements(s))
+    }
+    xmlTag = null
+    dContent = null
+  }
+
+  private def generateElements(s: String): List[String] =
+    s.split("</D>").map(_.substring("<D>".length)).toList
+
+
+  private var text: String = _
+
+  private def parseSuffixText(tag: String, s: String): Unit =
+    text + s match {
+      case suffTITLE(d) => parseTextContent(tag, d)
+      case suffBODY(d) => parseTextContent(tag, d)
+      case _ =>
+        xmlTag = tag
+        text += s
+    }
+
+  private def parseTextContent(tag: String, s: String): Unit = {
+    addElements(result.words, tokenize(s))
+    xmlTag = null
+    text = null
+  }
+
+  private def addElements(list: Map[String, Int], elements: List[String]): Map[String, Int] =
+    list |+| elements.foldLeft(Map.empty[String, Int]) { (m, x) => m + ((x, m.getOrElse(x, 0) + 1)) }
+
+  private def tokenize(s: String) =
+    s.toLowerCase.split("[\\s+]")
+      .filter(!_.isEmpty).toList
+
 }
