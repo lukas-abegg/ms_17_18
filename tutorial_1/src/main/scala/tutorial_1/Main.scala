@@ -26,20 +26,22 @@ object Main extends App {
 
   val reader = initXMLReader(new ReutersHandler)
 
-  val REFERENCE_CORPUS = "/Users/lukas/git-projects/ms_2017_18/tutorial_1/reference-corpus"
+  val BASE_PATH = "/home/lukas/git-projects"
+  val REFERENCE_CORPUS = BASE_PATH + "/home/lukas/git-projects"
+  val REUTERS_CORPUS = BASE_PATH + "/ms_2017_18/tutorial_1/reuters-corpus"
 
-  def parseXml(xml: File) = {
+  def parseXml(xml: File): Unit =
     reader.parse(new InputSource(new InputStreamReader(new FileInputStream(xml), "UTF-8")))
-  }
 
-  def getListOfXML(dir: File) = dir.listFiles.filter(f => f.isFile && (f.getName.endsWith(".xml"))).toList
+  def getListOfXML(dir: File): List[File] =
+    dir.listFiles.filter(f => f.isFile && (f.getName.endsWith(".xml"))).toList
 
   /*
   val futures: List[Future[Unit]] =
     getListOfXML(new File(REFERENCE_CORPUS)).par.map(file => Future(parseXml(file))).toList
   */
 
-  getListOfXML(new File(REFERENCE_CORPUS)).map(file => parseXml(file))
+  getListOfXML(new File(REUTERS_CORPUS)).map(file => parseXml(file))
 
   /*val f = Future.sequence(futures)
     f.onComplete {
@@ -49,18 +51,14 @@ object Main extends App {
 
       val handler = reader.getContentHandler.asInstanceOf[ReutersHandler]
 
-      println(s"Anzahl Docs: ${handler.docs}")
-      println(s"Anzahl Wörter: ${handler.count(handler.words, distinct = false)}")
-      println(s"Anzahl verschiedener Wörter: ${handler.count(handler.words)}")
+      println(s"Amount of docs: ${handler.docs}")
+      println(s"Amount of words: ${handler.count(handler.words, distinct = false)} (distinct: ${handler.count(handler.words)})")
 
-      println(s"Anzahl Topics: ${handler.count(handler.topics, distinct = false)}")
-      println(s"Anzahl verschiedener Topics: ${handler.count(handler.topics)}")
-      println(s"Anzahl People: ${handler.count(handler.people, distinct = false)}")
-      println(s"Anzahl verschiedener People: ${handler.count(handler.people)}")
-      println(s"Anzahl Places: ${handler.count(handler.places, distinct = false)}")
-      println(s"Anzahl verschiedener Places: ${handler.count(handler.places)}")
+      println(s"Amount of topics: ${handler.count(handler.topics, distinct = false)} (distinct: ${handler.count(handler.topics)})")
+      println(s"Amount of places: ${handler.count(handler.places, distinct = false)} (distinct: ${handler.count(handler.places)})")
+      println(s"Amount of people: ${handler.count(handler.people, distinct = false)} (distinct: ${handler.count(handler.people)})")
 
-      println(s"Häufigste Wörter:")
+      println(s"Most frequent words:")
       handler.getTopNWords(20, handler.words).toList foreach {
         case (word, count) => println(s"$word $count")
       }
@@ -112,13 +110,12 @@ class ReutersHandler extends DefaultHandler {
   private def addElements(list: Map[String, Int], s: String): Map[String, Int] =
     list |+| tokenize(s).foldLeft(Map.empty[String, Int]) { (m, x) => m + ((x, m.getOrElse(x, 0) + 1)) }
 
-  private def tokenize(s: String) = {
-    val regex = "[,.:;'<>\"\\?\\-!\\(\\)\\d]"
+  private def tokenize(s: String) =
+    //val regex = "[,.:;'<>\"\\?\\-!\\(\\)\\d]"
     s.toLowerCase.split("\\s")
+      .filter(!_.isEmpty).toList
     //.par.map(_.trim.toLowerCase)
     //.filter(x => !x.matches(regex) && !x.isEmpty).toList
-    .filter(!_.isEmpty).toList
-  }
 
   def getTopNWords(n: Int, xs: scala.collection.immutable.Map[String, Int]): Seq[(String, Int)] =
     xs.toSeq.sortWith(_._2 > _._2).take(n)
