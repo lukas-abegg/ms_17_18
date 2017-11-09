@@ -13,6 +13,8 @@ import scala.concurrent.{Await, Future}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.util.{Failure, Success}
 
+import scalaz._, Scalaz._
+
 
 object Main extends App {
 
@@ -30,7 +32,7 @@ object Main extends App {
     reader.parse(new InputSource(new InputStreamReader(new FileInputStream(xml), "UTF-8")))
   }
 
-  def getListOfXML(dir: File) = dir.listFiles.par.filter(f => f.isFile && (f.getName.endsWith(".xml"))).toList
+  def getListOfXML(dir: File) = dir.listFiles.filter(f => f.isFile && (f.getName.endsWith(".xml"))).toList
 
   /*
   val futures: List[Future[Unit]] =
@@ -76,17 +78,18 @@ class ReutersHandler extends DefaultHandler {
   val TOPICS = "TOPICS"
   val PEOPLE = "PEOPLE"
   val PLACES = "PLACES"
+  val UNKNOWN = "UNKNOWN"
   val TITLE = "TITLE"
   val BODY = "BODY"
   val TEXT = "TEXT"
   val D = "D"
 
   var docs = 0
-  var words = ListBuffer[String]()
+  var words = Map.empty[String, Int]
 
-  var topics = ListBuffer[String]()
-  var people = ListBuffer[String]()
-  var places = ListBuffer[String]()
+  var topics = Map.empty[String, Int]
+  var people = Map.empty[String, Int]
+  var places = Map.empty[String, Int]
 
 
   var tag: String = _
@@ -100,45 +103,43 @@ class ReutersHandler extends DefaultHandler {
       case PEOPLE => tagType = PEOPLE
       case TITLE | BODY => tag = TEXT
       case D => tag = D
-      case _ =>
+      case _ => tagType = UNKNOWN
     }
 
-  private def addWords(s: String) =
-    words ++= tokenize(s)
+  private def addWords(list: Map[String, Int], s: String): Map[String, Int] =
+    list |+| tokenize(s).foldLeft(Map.empty[String, Int]) { (m, x) => m + ((x, m.getOrElse(x, 0) + 1)) }
 
-  private def addElements(list: ListBuffer[String], s: String) =
-    list += s
+  private def addElements(list: Map[String, Int], s: String): Map[String, Int] =
+    list |+| tokenize(s).foldLeft(Map.empty[String, Int]) { (m, x) => m + ((x, m.getOrElse(x, 0) + 1)) }
 
   private def tokenize(s: String) = {
     val regex = "[,.:;'<>\"\\?\\-!\\(\\)\\d]"
-    s.toLowerCase.split("[\\s]")
-    .par.map(_.trim.toLowerCase)
-    .filter(x => !x.matches(regex) && !x.isEmpty).toList
+    s.toLowerCase.split("\\s")
+    //.par.map(_.trim.toLowerCase)
+    //.filter(x => !x.matches(regex) && !x.isEmpty).toList
+    .filter(!_.isEmpty).toList
   }
 
-  def getTopNWords(n: Int, xs: Seq[String]): Map[String, Int] =
-    ListMap(getWordCounts(xs).toSeq.sortWith(_._2 > _._2): _*).take(n)
+  def getTopNWords(n: Int, xs: scala.collection.immutable.Map[String, Int]): Seq[(String, Int)] =
+    xs.toSeq.sortWith(_._2 > _._2).take(n)
 
-  private def getWordCounts(xs: Seq[String]): Map[String, Int] =
-    Map(xs.distinct.par.map(x => x -> xs.count(_ == x)).toList: _*)
-
-  def count(xs: Seq[String], distinct: Boolean = true): Int =
+  def count(xs: Map[String, Int], distinct: Boolean = true): Int =
     if (distinct) {
-      xs.distinct.size
-    } else {
       xs.size
+    } else {
+      xs.foldLeft(0)(_+_._2)
     }
 
   override def characters(ch: Array[Char], start: Int, length: Int): Unit =
     tag match {
-      case TEXT => addWords(new String(ch, start, length))
+      case TEXT => words = addWords(words, new String(ch, start, length))
       case D => tagType match {
-        case TOPICS => addElements(topics, new String(ch, start, length))
-        case PEOPLE => addElements(people, new String(ch, start, length))
-        case PLACES => addElements(places, new String(ch, start, length))
-        case _ =>
+        case TOPICS => topics = addElements(topics, new String(ch, start, length))
+        case PEOPLE => people = addElements(people, new String(ch, start, length))
+        case PLACES => places = addElements(places, new String(ch, start, length))
+        case _ => ;
       }
-      case _ =>
+      case _ => ;
     }
 
   override def endElement(uri: String, localName: String, qName: String): Unit =
