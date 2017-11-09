@@ -1,70 +1,57 @@
 package tutorial_1
 
 import java.io._
+import javax.xml.parsers.SAXParserFactory
 
 import org.xml.sax._
 import org.xml.sax.helpers.DefaultHandler
-import javax.xml.parsers.SAXParserFactory
 
-import scala.collection.immutable.ListMap
-import scala.collection.mutable.ListBuffer
-import scala.concurrent.duration.Duration
-import scala.concurrent.{Await, Future}
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.util.{Failure, Success}
-
-import scalaz._, Scalaz._
+import scalaz.Scalaz._
 
 object Main extends App {
 
-  def initXMLReader(handler: ContentHandler): XMLReader = {
+  private def initXMLReader(handler: ContentHandler): XMLReader = {
     val reader = SAXParserFactory.newInstance.newSAXParser.getXMLReader
     reader.setContentHandler(handler)
     reader
   }
 
-  val result = new ParsedResult
-  val reader = initXMLReader(new ReutersHandler(result))
+  private lazy val result = new ParsedResult
+  private lazy val reader = initXMLReader(new ReutersHandler(result))
 
-  val BASE_PATH = "/home/lukas/git-projects"
-  val REFERENCE_CORPUS = BASE_PATH + "/home/lukas/git-projects"
-  val REUTERS_CORPUS = BASE_PATH + "/ms_2017_18/tutorial_1/reuters-corpus"
+  private lazy val BASE_PATH = "/home/lukas/git-projects"
+  private lazy val REFERENCE_CORPUS = BASE_PATH + "/ms_2017_18/tutorial_1/reference-corpus"
+  private lazy val REUTERS_CORPUS = BASE_PATH + "/ms_2017_18/tutorial_1/reuters-corpus"
 
-  def parseXml(xml: File): Unit =
+  private def parseXml(xml: File): Unit =
     reader.parse(new InputSource(new InputStreamReader(new FileInputStream(xml), "UTF-8")))
 
-  def getListOfXML(dir: File): List[File] =
-    dir.listFiles.filter(f => f.isFile && (f.getName.endsWith(".xml"))).toList
+  private def getListOfXML(dir: File): List[File] =
+    dir.listFiles.filter(f => f.isFile && f.getName.endsWith(".xml")).toList
 
-  /*
-  val futures: List[Future[Unit]] =
-    getListOfXML(new File(REFERENCE_CORPUS)).par.map(file => Future(parseXml(file))).toList
-  */
+  private def getTopNWords(n: Int, xs: scala.collection.immutable.Map[String, Int]): Seq[(String, Int)] =
+    xs.toSeq.sortWith(_._2 > _._2).take(n)
 
-  getListOfXML(new File(REUTERS_CORPUS)).map(file => parseXml(file))
+  private def count(xs: Map[String, Int], distinct: Boolean = true): Int =
+    if (distinct) {
+      xs.size
+    } else {
+      xs.foldLeft(0)(_ + _._2)
+    }
 
-  /*val f = Future.sequence(futures)
-    f.onComplete {
-    case Success(s) =>
-      println(s.length)
-      */
+  getListOfXML(new File(REFERENCE_CORPUS)).map(file => parseXml(file))
 
-      val handler = reader.getContentHandler.asInstanceOf[ReutersHandler]
+  println(s"Amount of docs: ${result.docs}")
+  println(s"Amount of words: ${count(result.words, distinct = false)} (distinct: ${count(result.words)})")
 
-      println(s"Amount of docs: ${result.docs}")
-      println(s"Amount of words: ${handler.count(result.words, distinct = false)} (distinct: ${handler.count(result.words)})")
+  println(s"Amount of topics: ${count(result.topics, distinct = false)} (distinct: ${count(result.topics)})")
+  println(s"Amount of places: ${count(result.places, distinct = false)} (distinct: ${count(result.places)})")
+  println(s"Amount of people: ${count(result.people, distinct = false)} (distinct: ${count(result.people)})")
 
-      println(s"Amount of topics: ${handler.count(result.topics, distinct = false)} (distinct: ${handler.count(result.topics)})")
-      println(s"Amount of places: ${handler.count(result.places, distinct = false)} (distinct: ${handler.count(result.places)})")
-      println(s"Amount of people: ${handler.count(result.people, distinct = false)} (distinct: ${handler.count(result.people)})")
-
-      println(s"Most frequent words:")
-      handler.getTopNWords(20, result.words).toList foreach {
-        case (word, count) => println(s"$word $count")
-      }
-  /*
-    case Failure(e) => e.printStackTrace()
-  }*/
+  println(s"Most frequent words:")
+  getTopNWords(20, result.words).toList foreach {
+    case (word, count) => println(s"$word $count")
+  }
 
 }
 
@@ -78,18 +65,18 @@ case class ParsedResult(
 
 class ReutersHandler(result: ParsedResult) extends DefaultHandler {
 
-  val REUTERS = "REUTERS"
-  val TOPICS = "TOPICS"
-  val PEOPLE = "PEOPLE"
-  val PLACES = "PLACES"
-  val UNKNOWN = "UNKNOWN"
-  val TITLE = "TITLE"
-  val BODY = "BODY"
-  val TEXT = "TEXT"
-  val D = "D"
+  private lazy val REUTERS = "REUTERS"
+  private lazy val TOPICS = "TOPICS"
+  private lazy val PEOPLE = "PEOPLE"
+  private lazy val PLACES = "PLACES"
+  private lazy val UNKNOWN = "UNKNOWN"
+  private lazy val TITLE = "TITLE"
+  private lazy val BODY = "BODY"
+  private lazy val TEXT = "TEXT"
+  private lazy val D = "D"
 
-  var tag: String = _
-  var tagType: String = _
+  private var tag: String = _
+  private var tagType: String = _
 
   override def startElement(uri: String, localName: String, qName: String, attributes: Attributes): Unit =
     qName match {
@@ -102,36 +89,23 @@ class ReutersHandler(result: ParsedResult) extends DefaultHandler {
       case _ => tagType = UNKNOWN
     }
 
-  private def addWords(list: Map[String, Int], s: String): Map[String, Int] =
-    list |+| tokenize(s).foldLeft(Map.empty[String, Int]) { (m, x) => m + ((x, m.getOrElse(x, 0) + 1)) }
-
-  private def addElements(list: Map[String, Int], s: String): Map[String, Int] =
-    list |+| tokenize(s).foldLeft(Map.empty[String, Int]) { (m, x) => m + ((x, m.getOrElse(x, 0) + 1)) }
+  private def addElements(list: Map[String, Int], strings: List[String]): Map[String, Int] =
+    list |+| strings.foldLeft(Map.empty[String, Int]) { (m, x) => m + ((x, m.getOrElse(x, 0) + 1)) }
 
   private def tokenize(s: String) =
-    //val regex = "[,.:;'<>\"\\?\\-!\\(\\)\\d]"
+  //val regex = "[,.:;'<>\"\\?\\-!\\(\\)\\d]"
     s.toLowerCase.split("\\s")
       .filter(!_.isEmpty).toList
-    //.par.map(_.trim.toLowerCase)
-    //.filter(x => !x.matches(regex) && !x.isEmpty).toList
-
-  def getTopNWords(n: Int, xs: scala.collection.immutable.Map[String, Int]): Seq[(String, Int)] =
-    xs.toSeq.sortWith(_._2 > _._2).take(n)
-
-  def count(xs: Map[String, Int], distinct: Boolean = true): Int =
-    if (distinct) {
-      xs.size
-    } else {
-      xs.foldLeft(0)(_+_._2)
-    }
+  //.par.map(_.trim.toLowerCase)
+  //.filter(x => !x.matches(regex) && !x.isEmpty).toList
 
   override def characters(ch: Array[Char], start: Int, length: Int): Unit =
     tag match {
-      case TEXT => result.words = addWords(result.words, new String(ch, start, length))
+      case TEXT => result.words = addElements(result.words, tokenize(new String(ch, start, length)))
       case D => tagType match {
-        case TOPICS => result.topics = addElements(result.topics, new String(ch, start, length))
-        case PEOPLE => result.people = addElements(result.people, new String(ch, start, length))
-        case PLACES => result.places = addElements(result.places, new String(ch, start, length))
+        case TOPICS => result.topics = addElements(result.topics, List(new String(ch, start, length)))
+        case PEOPLE => result.people = addElements(result.people, List(new String(ch, start, length)))
+        case PLACES => result.places = addElements(result.places, List(new String(ch, start, length)))
         case _ => ;
       }
       case _ => ;
