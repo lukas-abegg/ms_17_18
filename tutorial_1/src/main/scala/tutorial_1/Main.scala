@@ -15,7 +15,6 @@ import scala.util.{Failure, Success}
 
 import scalaz._, Scalaz._
 
-
 object Main extends App {
 
   def initXMLReader(handler: ContentHandler): XMLReader = {
@@ -24,7 +23,8 @@ object Main extends App {
     reader
   }
 
-  val reader = initXMLReader(new ReutersHandler)
+  val result = new ParsedResult
+  val reader = initXMLReader(new ReutersHandler(result))
 
   val BASE_PATH = "/home/lukas/git-projects"
   val REFERENCE_CORPUS = BASE_PATH + "/home/lukas/git-projects"
@@ -51,15 +51,15 @@ object Main extends App {
 
       val handler = reader.getContentHandler.asInstanceOf[ReutersHandler]
 
-      println(s"Amount of docs: ${handler.docs}")
-      println(s"Amount of words: ${handler.count(handler.words, distinct = false)} (distinct: ${handler.count(handler.words)})")
+      println(s"Amount of docs: ${result.docs}")
+      println(s"Amount of words: ${handler.count(result.words, distinct = false)} (distinct: ${handler.count(result.words)})")
 
-      println(s"Amount of topics: ${handler.count(handler.topics, distinct = false)} (distinct: ${handler.count(handler.topics)})")
-      println(s"Amount of places: ${handler.count(handler.places, distinct = false)} (distinct: ${handler.count(handler.places)})")
-      println(s"Amount of people: ${handler.count(handler.people, distinct = false)} (distinct: ${handler.count(handler.people)})")
+      println(s"Amount of topics: ${handler.count(result.topics, distinct = false)} (distinct: ${handler.count(result.topics)})")
+      println(s"Amount of places: ${handler.count(result.places, distinct = false)} (distinct: ${handler.count(result.places)})")
+      println(s"Amount of people: ${handler.count(result.people, distinct = false)} (distinct: ${handler.count(result.people)})")
 
       println(s"Most frequent words:")
-      handler.getTopNWords(20, handler.words).toList foreach {
+      handler.getTopNWords(20, result.words).toList foreach {
         case (word, count) => println(s"$word $count")
       }
   /*
@@ -68,9 +68,15 @@ object Main extends App {
 
 }
 
-case class Result(docs: Int, words: List[String], topics: List[String], people: List[String], places: List[String])
+case class ParsedResult(
+                         var docs: Int = 0,
+                         var words: Map[String, Int] = Map.empty[String, Int],
+                         var topics: Map[String, Int] = Map.empty[String, Int],
+                         var people: Map[String, Int] = Map.empty[String, Int],
+                         var places: Map[String, Int] = Map.empty[String, Int]
+                       )
 
-class ReutersHandler extends DefaultHandler {
+class ReutersHandler(result: ParsedResult) extends DefaultHandler {
 
   val REUTERS = "REUTERS"
   val TOPICS = "TOPICS"
@@ -82,20 +88,12 @@ class ReutersHandler extends DefaultHandler {
   val TEXT = "TEXT"
   val D = "D"
 
-  var docs = 0
-  var words = Map.empty[String, Int]
-
-  var topics = Map.empty[String, Int]
-  var people = Map.empty[String, Int]
-  var places = Map.empty[String, Int]
-
-
   var tag: String = _
   var tagType: String = _
 
   override def startElement(uri: String, localName: String, qName: String, attributes: Attributes): Unit =
     qName match {
-      case REUTERS => docs += 1
+      case REUTERS => result.docs += 1
       case TOPICS => tagType = TOPICS
       case PLACES => tagType = PLACES
       case PEOPLE => tagType = PEOPLE
@@ -129,11 +127,11 @@ class ReutersHandler extends DefaultHandler {
 
   override def characters(ch: Array[Char], start: Int, length: Int): Unit =
     tag match {
-      case TEXT => words = addWords(words, new String(ch, start, length))
+      case TEXT => result.words = addWords(result.words, new String(ch, start, length))
       case D => tagType match {
-        case TOPICS => topics = addElements(topics, new String(ch, start, length))
-        case PEOPLE => people = addElements(people, new String(ch, start, length))
-        case PLACES => places = addElements(places, new String(ch, start, length))
+        case TOPICS => result.topics = addElements(result.topics, new String(ch, start, length))
+        case PEOPLE => result.people = addElements(result.people, new String(ch, start, length))
+        case PLACES => result.places = addElements(result.places, new String(ch, start, length))
         case _ => ;
       }
       case _ => ;
