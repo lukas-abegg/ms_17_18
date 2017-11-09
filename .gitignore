@@ -17,4 +17,4 @@
 ### Scala ###
 */*.class
 */*.log
-
+*.DS_Store
