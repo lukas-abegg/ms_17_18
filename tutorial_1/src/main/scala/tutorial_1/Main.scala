@@ -11,27 +11,25 @@ import scala.collection.mutable.ListBuffer
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.util.{Failure, Success}
+import scala.util.{Failure, Success, Try}
+import scalaz._
+import Scalaz._
 
-import scalaz._, Scalaz._
+import scala.io.Source
 
 
 object Main extends App {
-
-  def initXMLReader(handler: ContentHandler): XMLReader = {
-    val reader = SAXParserFactory.newInstance.newSAXParser.getXMLReader
-    reader.setContentHandler(handler)
-    reader
-  }
-
-  val reader = initXMLReader(new ReutersHandler)
 
   val BASE_PATH = "/home/lukas/git-projects"
   val REFERENCE_CORPUS = BASE_PATH + "/home/lukas/git-projects"
   val REUTERS_CORPUS = BASE_PATH + "/ms_2017_18/tutorial_1/reuters-corpus"
 
+
+
   def parseXml(xml: File): Unit =
-    reader.parse(new InputSource(new InputStreamReader(new FileInputStream(xml), "UTF-8")))
+    for (line <- Source.fromFile(xml).getLines) {
+
+    }
 
   def getListOfXML(dir: File): List[File] =
     dir.listFiles.filter(f => f.isFile && (f.getName.endsWith(".xml"))).toList
@@ -68,9 +66,15 @@ object Main extends App {
 
 }
 
-case class Result(docs: Int, words: List[String], topics: List[String], people: List[String], places: List[String])
+case class ParsedResult(
+                         docs: Int = 0,
+                         words: Map[String, Int] = Map.empty[String, Int],
+                         topics: Map[String, Int] = Map.empty[String, Int],
+                         people: Map[String, Int] = Map.empty[String, Int],
+                         places: Map[String, Int] = Map.empty[String, Int]
+                       )
 
-class ReutersHandler extends DefaultHandler {
+class ReutersHandler(result: ParsedResult) extends DefaultHandler {
 
   val REUTERS = "REUTERS"
   val TOPICS = "TOPICS"
@@ -82,20 +86,12 @@ class ReutersHandler extends DefaultHandler {
   val TEXT = "TEXT"
   val D = "D"
 
-  var docs = 0
-  var words = Map.empty[String, Int]
-
-  var topics = Map.empty[String, Int]
-  var people = Map.empty[String, Int]
-  var places = Map.empty[String, Int]
-
-
   var tag: String = _
   var tagType: String = _
 
   override def startElement(uri: String, localName: String, qName: String, attributes: Attributes): Unit =
     qName match {
-      case REUTERS => docs += 1
+      case REUTERS => result.docs += 1
       case TOPICS => tagType = TOPICS
       case PLACES => tagType = PLACES
       case PEOPLE => tagType = PEOPLE
