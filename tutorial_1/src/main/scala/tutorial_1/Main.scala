@@ -98,7 +98,7 @@ class ReutersHandler(result: ParsedResult) extends DefaultHandler {
 
   private def tokenize(s: String) =
   //val regex = "[,.:;'<>\"\\?\\-!\\(\\)\\d]"
-    s.toLowerCase.split("[\\s+]")
+    s.toLowerCase.split("[\\s]")
       .filter(!_.isEmpty).toList
   //.par.map(_.trim.toLowerCase)
   //.filter(x => !x.matches(regex) && !x.isEmpty).toList
