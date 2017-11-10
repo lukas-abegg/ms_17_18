@@ -1,6 +1,7 @@
 package tutorial_1
 
 import java.io._
+import java.util.concurrent.TimeUnit
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -10,6 +11,8 @@ import scalaz.Scalaz._
 
 
 object Main extends App {
+
+  var now = System.nanoTime
 
   private lazy val BASE_PATH = "/home/lukas/git-projects"
   private lazy val REFERENCE_CORPUS = BASE_PATH + "/ms_2017_18/tutorial_1/reference-corpus"
@@ -59,6 +62,8 @@ object Main extends App {
       getTopNWords(20, result.words).toList foreach {
         case (word, count) => println(s"$word $count")
       }
+
+      println("it runs about: "+TimeUnit.MILLISECONDS.convert(System.nanoTime - now, TimeUnit.NANOSECONDS))
 
     case Failure(e) => e.printStackTrace()
   }
