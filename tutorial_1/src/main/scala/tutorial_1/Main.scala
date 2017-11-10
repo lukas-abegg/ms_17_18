@@ -1,6 +1,7 @@
 package tutorial_1
 
 import java.io._
+import java.util.concurrent.TimeUnit
 import javax.xml.parsers.SAXParserFactory
 
 import org.xml.sax._
@@ -9,6 +10,8 @@ import org.xml.sax.helpers.DefaultHandler
 import scalaz.Scalaz._
 
 object Main extends App {
+
+  var now = System.nanoTime
 
   private def initXMLReader(handler: ContentHandler): XMLReader = {
     val reader = SAXParserFactory.newInstance.newSAXParser.getXMLReader
@@ -39,7 +42,7 @@ object Main extends App {
       xs.foldLeft(0)(_ + _._2)
     }
 
-  getListOfXML(new File(REFERENCE_CORPUS)).map(file => parseXml(file))
+  getListOfXML(new File(REUTERS_CORPUS)).foreach(file => parseXml(file))
 
   println(s"Amount of docs: ${result.docs}")
   println(s"Amount of words: ${count(result.words, distinct = false)} (distinct: ${count(result.words)})")
@@ -53,6 +56,7 @@ object Main extends App {
     case (word, count) => println(s"$word $count")
   }
 
+  println("it runs about: "+TimeUnit.MILLISECONDS.convert(System.nanoTime - now, TimeUnit.NANOSECONDS))
 }
 
 case class ParsedResult(
@@ -94,23 +98,31 @@ class ReutersHandler(result: ParsedResult) extends DefaultHandler {
 
   private def tokenize(s: String) =
   //val regex = "[,.:;'<>\"\\?\\-!\\(\\)\\d]"
-    s.toLowerCase.split("\\s")
+    s.toLowerCase.split("[\\s+]")
       .filter(!_.isEmpty).toList
   //.par.map(_.trim.toLowerCase)
   //.filter(x => !x.matches(regex) && !x.isEmpty).toList
 
-  override def characters(ch: Array[Char], start: Int, length: Int): Unit =
+  private def handlingContent(s: String): Unit =
     tag match {
-      case TEXT => result.words = addElements(result.words, tokenize(new String(ch, start, length)))
+      case TEXT => result.words = addElements(result.words, tokenize(s))
       case D => tagType match {
-        case TOPICS => result.topics = addElements(result.topics, List(new String(ch, start, length)))
-        case PEOPLE => result.people = addElements(result.people, List(new String(ch, start, length)))
-        case PLACES => result.places = addElements(result.places, List(new String(ch, start, length)))
+        case TOPICS => result.topics = addElements(result.topics, List(s.toLowerCase))
+        case PEOPLE => result.people = addElements(result.people, List(s.toLowerCase))
+        case PLACES => result.places = addElements(result.places, List(s.toLowerCase))
         case _ => ;
       }
       case _ => ;
     }
 
-  override def endElement(uri: String, localName: String, qName: String): Unit =
+  private lazy val sb: StringBuilder = new StringBuilder()
+
+  override def characters(ch: Array[Char], start: Int, length: Int): Unit =
+    sb.append(new String(ch, start, length))
+
+  override def endElement(uri: String, localName: String, qName: String): Unit = {
+    handlingContent(sb.toString)
+    sb.setLength(0)
     tag = null
+  }
 }
