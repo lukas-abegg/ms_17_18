@@ -26,7 +26,7 @@ object Main extends App {
   }
 
   private def getParsedResults: List[Future[ParsedResult]] =
-    getListOfXML(new File(REFERENCE_CORPUS))
+    getListOfXML(new File(REUTERS_CORPUS))
       .map(file => Future(parseXml(file)))
 
   private def mergeParsedResults(results: List[ParsedResult]): ParsedResult =
@@ -185,6 +185,5 @@ class ReutersHandler(result: ParsedResult) {
 
   private def tokenize(s: String) : List[String] =
     splitter.findAllIn(s.toLowerCase).toList
-      //.filter(!_.isEmpty).toList
 
 }
