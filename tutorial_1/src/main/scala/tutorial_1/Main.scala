@@ -22,7 +22,7 @@ object Main extends App {
   private lazy val result = new ParsedResult
   private lazy val reader = initXMLReader(new ReutersHandler(result))
 
-  private lazy val BASE_PATH = "/home/lukas/git-projects"
+  private lazy val BASE_PATH = "/Users/lukas/git-projects"
   private lazy val REFERENCE_CORPUS = BASE_PATH + "/ms_2017_18/tutorial_1/reference-corpus"
   private lazy val REUTERS_CORPUS = BASE_PATH + "/ms_2017_18/tutorial_1/reuters-corpus"
 
@@ -96,29 +96,27 @@ class ReutersHandler(result: ParsedResult) extends DefaultHandler {
   private def addElements(list: Map[String, Int], strings: List[String]): Map[String, Int] =
     list |+| strings.foldLeft(Map.empty[String, Int]) { (m, x) => m + ((x, m.getOrElse(x, 0) + 1)) }
 
+  private lazy val regex = "([^\\s]+)".r
+
   private def tokenize(s: String) =
-  //val regex = "[,.:;'<>\"\\?\\-!\\(\\)\\d]"
-    s.toLowerCase.split("[\\s]")
-      .filter(!_.isEmpty).toList
-  //.par.map(_.trim.toLowerCase)
-  //.filter(x => !x.matches(regex) && !x.isEmpty).toList
+    regex.findAllIn(s).toList
 
   private def handlingContent(s: String): Unit =
     tag match {
       case TEXT => result.words = addElements(result.words, tokenize(s))
       case D => tagType match {
-        case TOPICS => result.topics = addElements(result.topics, List(s.toLowerCase))
-        case PEOPLE => result.people = addElements(result.people, List(s.toLowerCase))
-        case PLACES => result.places = addElements(result.places, List(s.toLowerCase))
-        case _ => ;
+        case TOPICS => result.topics = addElements(result.topics, List(s))
+        case PEOPLE => result.people = addElements(result.people, List(s))
+        case PLACES => result.places = addElements(result.places, List(s))
+        case _ =>
       }
-      case _ => ;
+      case _ =>
     }
 
   private lazy val sb: StringBuilder = new StringBuilder()
 
   override def characters(ch: Array[Char], start: Int, length: Int): Unit =
-    sb.append(new String(ch, start, length))
+    sb.append(" " + new String(ch, start, length))
 
   override def endElement(uri: String, localName: String, qName: String): Unit = {
     handlingContent(sb.toString)
