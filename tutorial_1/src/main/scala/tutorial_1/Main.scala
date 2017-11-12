@@ -3,8 +3,6 @@ package tutorial_1
 import java.io._
 import java.util.concurrent.TimeUnit
 
-import jdk.nashorn.internal.runtime.ScriptRuntime
-
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
@@ -107,19 +105,19 @@ class ReutersHandler() {
 
   private def parseDocument(doc: String): ParsedResult = {
     val f = List(
+      Future(titleR.findFirstIn(doc).flatMap(title => bodyR.findFirstIn(doc).map(body => addElements(tokenize(title + " " + body))))),
       Future(topicsR.findFirstIn(doc).map(s => addElements(parseDTags(s)))),
-      Future(placesR.findFirstIn(doc).map(s => addElements(parseDTags(s)))),
       Future(peopleR.findFirstIn(doc).map(s => addElements(parseDTags(s)))),
-      Future(titleR.findFirstIn(doc).flatMap(title => bodyR.findFirstIn(doc).map(body => addElements(tokenize(title + "" + body)))))
+      Future(placesR.findFirstIn(doc).map(s => addElements(parseDTags(s))))
     )
     val results = Await.result(Future.sequence(f), Duration.Inf)
 
     ParsedResult(
       1,
-      results(3).getOrElse(Map.empty[String, Int]),
       results(0).getOrElse(Map.empty[String, Int]),
       results(1).getOrElse(Map.empty[String, Int]),
-      results(2).getOrElse(Map.empty[String, Int])
+      results(2).getOrElse(Map.empty[String, Int]),
+      results(3).getOrElse(Map.empty[String, Int])
     )
   }
 
