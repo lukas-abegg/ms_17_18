@@ -1,69 +1,62 @@
 package tutorial_1
 
 import java.io._
-import java.util.concurrent.TimeUnit
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 import scala.io.{Codec, Source}
+import scala.util.Sorting
 import scala.util.matching.Regex
 import scalaz.Scalaz._
 
 object Main extends App {
 
-  var now = System.nanoTime
+  lazy val results = Await.result(Future.sequence(Helper.getParsedResults(args(0))), Duration.Inf)
+  Helper.printResults(Helper.mergeParsedResults(results))
+}
 
-  private lazy val BASE_PATH = "/Users/lukas/git-projects"
-  private lazy val REFERENCE_CORPUS = BASE_PATH + "/ms_2017_18/tutorial_1/reference-corpus"
-  private lazy val REUTERS_CORPUS = BASE_PATH + "/ms_2017_18/tutorial_1/reuters-corpus"
 
-  private def getParsedResults: List[Future[ParsedResult]] =
-    getListOfXML(new File(REFERENCE_CORPUS))
+object Helper {
+
+  private lazy val console: StringBuilder = new StringBuilder()
+
+  def printResults(result: ParsedResult): Unit = {
+    console.append(s"Anzahl Dokumente: ${result.docs}\n")
+    console.append(s"Anzahl Wörter: ${Helper.count(result.words, distinct = false)} (${Helper.count(result.words)} distinct)\n")
+    console.append(s"Anzahl Topics: ${Helper.count(result.topics, distinct = false)} (${Helper.count(result.topics)} distinct)\n")
+    console.append(s"Anzahl Places: ${Helper.count(result.places, distinct = false)} (${Helper.count(result.places)} distinct)\n")
+    console.append(s"Anzahl People: ${Helper.count(result.people, distinct = false)} (${Helper.count(result.people)} distinct)\n")
+
+    console.append(s"Häufigste Wörter:\n")
+    Helper.getTopNWords(30, result.words.toArray).toList foreach {
+      case (word, count) => console.append(s"$word $count\n")
+    }
+
+    print(console.toString)
+  }
+
+  def getParsedResults(path: String): List[Future[ParsedResult]] =
+    getListOfXML(new File(path))
       .map(file => Future(parseXml(file)))
 
   private def getListOfXML(dir: File): List[File] =
     dir.listFiles.filter(f => f.isFile && f.getName.endsWith(".xml")).toList
 
   private def parseXml(xml: File): ParsedResult = {
-    val handler = new ReutersHandler()
+    lazy val handler = new ReutersHandler()
     handler.parse(Source.fromFile(xml)(Codec.UTF8))
   }
-
-  val results = Await.result(Future.sequence(getParsedResults), Duration.Inf)
-  val result = Helper.mergeParsedResults(results)
-
-  private lazy val console: StringBuilder = new StringBuilder()
-
-  console.append(s"Amount of docs: ${result.docs}\n")
-  console.append(s"Amount of words: ${Helper.count(result.words, distinct = false)} (distinct: ${Helper.count(result.words)})\n")
-
-  console.append(s"Amount of topics: ${Helper.count(result.topics, distinct = false)} (distinct: ${Helper.count(result.topics)})\n")
-  console.append(s"Amount of places: ${Helper.count(result.places, distinct = false)} (distinct: ${Helper.count(result.places)})\n")
-  console.append(s"Amount of people: ${Helper.count(result.people, distinct = false)} (distinct: ${Helper.count(result.people)})\n")
-
-  console.append(s"Most frequent words:\n")
-
-  Helper.getTopNWords(20, result.words).toList foreach {
-    case (word, count) => console.append(s"$word $count\n")
-  }
-
-  console.append(s"it runs about: ${TimeUnit.MILLISECONDS.convert(System.nanoTime - now, TimeUnit.NANOSECONDS)}\n")
-
-  print(console.toString)
-
-}
-
-
-object Helper {
 
   def mergeParsedResults(results: List[ParsedResult]): ParsedResult =
     results.reduceLeft { (m, x) =>
       ParsedResult(m.docs + x.docs, m.words |+| x.words, m.topics |+| x.topics, m.people |+| x.people, m.places |+| x.places)
     }
 
-  def getTopNWords(n: Int, xs: Map[String, Int]): Seq[(String, Int)] =
-    xs.toSeq.sortWith(_._2 > _._2).take(n)
+  def getTopNWords(n: Int, xs: Array[(String, Int)]): Array[(String, Int)] = {
+    Sorting.quickSort(xs)(Ordering.by((_: (String, Int))._2).reverse)
+    xs.take(n)
+  }
 
   def count(xs: Map[String, Int], distinct: Boolean = true): Int =
     if (distinct) {
@@ -83,7 +76,6 @@ object Helper {
   lazy val splitDTag: Regex = "((?<=<D>).+?(?=<\\/D>))+".r
 
   lazy val splitWhitespace: Regex = "([^\\s]+)".r
-
 }
 
 
@@ -98,37 +90,27 @@ case class ParsedResult(
 
 class ReutersHandler() {
 
-  private val content: StringBuilder = new StringBuilder()
+  private lazy val content: StringBuilder = new StringBuilder()
 
   def parse(source: io.BufferedSource): ParsedResult = {
     source.getLines.toList.addString(content, " ")
 
-    val docs = getDocuments(content.toString)
-    val results = Await.result(Future.sequence(docs.map { doc => Future(parseDocument(doc)) }), Duration.Inf)
+    lazy val results = getDocuments(content.toString).map { doc => parseDocument(doc) }
     Helper.mergeParsedResults(results)
   }
 
   private def getDocuments(content: String): List[String] =
     Helper.reutersR.findAllIn(content).toList
 
-  private def parseDocument(doc: String): ParsedResult = {
-    val f = List(
-      Future(Helper.titleR.findFirstIn(doc).map(s => addElements(tokenize(s)))),
-      Future(Helper.bodyR.findFirstIn(doc).map(s => addElements(tokenize(s)))),
-      Future(Helper.topicsR.findFirstIn(doc).map(s => addElements(parseDTags(s)))),
-      Future(Helper.peopleR.findFirstIn(doc).map(s => addElements(parseDTags(s)))),
-      Future(Helper.placesR.findFirstIn(doc).map(s => addElements(parseDTags(s))))
-    )
-    val results = Await.result(Future.sequence(f), Duration.Inf)
-
+  private def parseDocument(doc: String): ParsedResult =
     ParsedResult(
       1,
-      results.head.getOrElse(Map.empty[String, Int]) |+| results(1).getOrElse(Map.empty[String, Int]),
-      results(2).getOrElse(Map.empty[String, Int]),
-      results(3).getOrElse(Map.empty[String, Int]),
-      results(4).getOrElse(Map.empty[String, Int])
+      Helper.titleR.findFirstIn(doc).map(s => addElements(tokenize(s))).getOrElse(Map.empty[String, Int]) |+|
+        Helper.bodyR.findFirstIn(doc).map(s => addElements(tokenize(s))).getOrElse(Map.empty[String, Int]),
+      Helper.topicsR.findFirstIn(doc).map(s => addElements(parseDTags(s))).getOrElse(Map.empty[String, Int]),
+      Helper.peopleR.findFirstIn(doc).map(s => addElements(parseDTags(s))).getOrElse(Map.empty[String, Int]),
+      Helper.placesR.findFirstIn(doc).map(s => addElements(parseDTags(s))).getOrElse(Map.empty[String, Int])
     )
-  }
 
   private def parseDTags(s: String): List[String] =
     Helper.splitDTag.findAllIn(s).toList
@@ -138,5 +120,4 @@ class ReutersHandler() {
 
   private def tokenize(s: String): List[String] =
     Helper.splitWhitespace.findAllIn(s.toLowerCase).toList
-
 }
