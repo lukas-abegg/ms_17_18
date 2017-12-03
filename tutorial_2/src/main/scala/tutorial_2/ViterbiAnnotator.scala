@@ -1,24 +1,26 @@
 package tutorial_2
 
 
+case class TableColumn(wordGram: Triple, posGram: Map[Triple, Map[Triple, Double]])
+
 case class Annotation(word: String, posTag: String)
 
 
 class ViterbiAnnotator(hmm: HiddenMarkovModel) {
 
-  lazy val posTagsDict = List(".", "(", ")", "*", "--", ",", ":", "ABL", "ABN", "ABX", "AP", "AT", "BE", "BED", "BEDZ", "BEG", "BEM", "BEN", "BER",
-    "BEZ", "CC", "CD", "CS", "DO", "DOD", "DOZ", "DT", "DTI", "DTS", "DTX", "EX", "FW", "HV", "HVD", "HVG", "HVN", "IN", "JJ", "JJR", "JJS",
-    "JJT", "MD", "NC", "NN", "NN$", "NNS", "NNS$", "NP", "NP$", "NPS", "NPS$", "NR", "OD", "PN", "PN$", "PP$", "PP$$", "PPL", "PPLS", "PPO",
-    "PPS", "PPSS", "PRP", "PRP$", "QL", "QLP", "RB", "RBR", "RBT", "RN", "RP", "TO", "UH", "VB", "VBD", "VBG", "VBN", "VBP", "VBZ", "WDT",
-    "WP$", "WPO", "WPS", "WQL", "WRB").map(_.toLowerCase)
-
-  private def getTagProbs(w: Triple, p: List[String]): Map[Triple, Long] =
-    posTagsDict.foldLeft(Map.empty[Triple, Long]) { (m, x) =>
-      val t = Triple(p :+ x)
-      m + ((t, hmm.getTransition(w, t).toLong))
+  private def getTagProbs(w: Triple): Map[Triple,  Map[Triple, Double]] = {
+    hmm.getPOSTags().foldLeft(Map.empty[Triple,  Map[Triple, Double]]) { (m, x) =>
+      x
+      m
+      null
     }
+  }
 
-  private def calcProbs(w: Triple, prevs: Option[Map[Triple, Long]]) = {
+  private def probStart():Double = null
+
+  private def probInside():Double = null
+
+  private def calcProbs(w: Triple, prevs: Option[Map[Triple, Double]]) = {
     prevs match {
       // Triple wird im vorherigen mit _3 = dieses Zeichen berechnet
       case Some(previous) => previous.map { case (k, v) => getTagProbs(w, k.prev).valuesIterator.max }
@@ -32,10 +34,11 @@ class ViterbiAnnotator(hmm: HiddenMarkovModel) {
   def annotate(sentences: List[String]) = {
     sentences.map { s =>
       val triples = hmm.pred(s)
-      var sentenceMatrix = Map[String, Map[Triple, Long]] // Tabelle pro Satz
 
-      triples.map { triple =>
-        //var resultColumn = getTagProbs(triple)
+      // List constructor: List(Word3Gram -> Map(POS-Tag3Gram -> Map(POS-Tag3Gram -> Probability)))
+      triples.foldLeft(List.empty[TableColumn]) { (m, triple) =>
+        // Tabelle pro Satz
+        TableColumn(triple, getTagProbs(triple)) :: m
       }
     }
   }

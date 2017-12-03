@@ -11,4 +11,3 @@ object Main extends App {
   annotator.annotate(data)
 }
 
-

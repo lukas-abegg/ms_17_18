@@ -22,6 +22,6 @@ class Parser(dir: String) {
 
   def preprocess(): List[String] =
     parseFiles(dir)
-      .take(10)
+      .take(1)
       .flatMap(splitSentences.findAllIn)
 }
