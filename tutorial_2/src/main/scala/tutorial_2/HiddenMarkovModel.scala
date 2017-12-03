@@ -1,8 +1,8 @@
 package tutorial_2
 
-import scala.util.matching.Regex
+import tutorial_2.Helper._
 
-import scalaz.Scalaz._
+import scala.util.matching.Regex
 
 
 case class Triple(key: String) {
@@ -17,15 +17,7 @@ object Triple {
 
 class HiddenMarkovModel {
 
-  private def logOf(emissions: Map[Triple, Map[Triple, Double]]): Map[Triple, Map[Triple, Double]] =
-    emissions.map { e =>
-      e._2 match {
-        case ts: Map[Triple, Double] =>
-          (e._1, ts.map { t => (t._1, Math.log(t._2 / e._2.values.sum)) })
-      }
-    }
-
-  private def buildEmissionsInSentence(sentence: List[Triple], posTags: List[Triple]): Map[Triple, Map[Triple, Double]] = {
+  private def buildEmissionsInSentence(sentence: List[Triple], posTags: List[Triple]): NestedMapType = {
     val emissions = Map(sentence.map { x => x -> Map.empty[Triple, Double] }: _*)
 
     (sentence zip posTags).foldLeft(emissions) { (m, x) =>
@@ -36,14 +28,14 @@ class HiddenMarkovModel {
     }
   }
 
-  private def buildEmissions(sentences: List[List[Triple]], posTags: List[List[Triple]]): Map[Triple, Map[Triple, Double]] =
-    (sentences zip posTags).foldLeft(Map.empty[Triple, Map[Triple, Double]]) { (m, x) =>
-      m |+| buildEmissionsInSentence(x._1, x._2)
+  private def buildEmissions(sentences: List[List[Triple]], posTags: List[List[Triple]]): NestedMapType =
+    (sentences zip posTags).foldLeft(Map.empty[Triple, SimpleMapType]) { (m, x) =>
+      merge(m, buildEmissionsInSentence(x._1, x._2))
     }
 
-  private lazy val startTag = Triple("#$")
+  val startTag = Triple("#$")
 
-  private def buildTransitionsInSentence(posTags: List[Triple]): Map[Triple, Map[Triple, Double]] = {
+  private def buildTransitionsInSentence(posTags: List[Triple]): NestedMapType = {
     val transitions = Map(posTags.map { x => x -> Map.empty[Triple, Double] }: _*)
 
     posTags.zipWithIndex.foldLeft(transitions) { (m, x) =>
@@ -62,9 +54,9 @@ class HiddenMarkovModel {
     }
   }
 
-  private def buildTransitions(posTags: List[List[Triple]]): Map[Triple, Map[Triple, Double]] =
-    posTags.foldLeft(Map.empty[Triple, Map[Triple, Double]]) { (m, x) =>
-    m |+| buildTransitionsInSentence(x)
+  private def buildTransitions(posTags: List[List[Triple]]): NestedMapType =
+    posTags.foldLeft(Map.empty[Triple, SimpleMapType]) { (m, x) =>
+      merge(m, buildTransitionsInSentence(x))
   }
 
   private def getTrigrams(r: Regex, sentence: String): List[Triple] =
@@ -78,8 +70,8 @@ class HiddenMarkovModel {
   private def tokenizeLine(r: Regex, line: String): List[String] =
     prefSuffix ++ r.findAllIn(line).toList ++ prefSuffix
 
-  private var transitions: Map[Triple, Map[Triple, Double]] = _
-  private var emissions: Map[Triple, Map[Triple, Double]] = _
+  private var transitions: NestedMapType = _
+  private var emissions: NestedMapType = _
 
   def fit(sentences: List[String]): Unit = {
     val words: List[List[Triple]] = sentences.map(getTrigrams(getGrams, _))
@@ -98,6 +90,6 @@ class HiddenMarkovModel {
   def getTransition(t: Triple, prev: Triple): Double =
     transitions.getOrElse(t, Map.empty[Triple, Double]).getOrElse(prev, 0.0)
 
-  def getPOSTags(): List[Triple] =
+  def getTags(): List[Triple] =
     transitions.keys.toList
 }

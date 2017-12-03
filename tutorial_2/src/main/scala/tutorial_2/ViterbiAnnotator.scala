@@ -1,30 +1,32 @@
 package tutorial_2
 
+import tutorial_2.Helper._
 
-case class TableColumn(wordGram: Triple, posGram: Map[Triple, Map[Triple, Double]])
+
+case class TableColumn(wordGram: Triple, posGram: List[(Triple, Map[Triple, (String, Double)])])
 
 case class Annotation(word: String, posTag: String)
 
 
 class ViterbiAnnotator(hmm: HiddenMarkovModel) {
 
-  private def getTagProbs(w: Triple): Map[Triple,  Map[Triple, Double]] = {
-    hmm.getPOSTags().foldLeft(Map.empty[Triple,  Map[Triple, Double]]) { (m, x) =>
-      x
-      m
-      null
-    }
-  }
+  private def calcProb(e: Double, t: Double) = e + t
 
-  private def probStart():Double = null
+  private def getTagProbs(word: Triple, optPrev: Option[TableColumn], laplace: Double):(Triple, (String, Double)) = {
+    // each new column
+    val list = hmm.getTags().foldLeft(Map.empty[Triple, SimpleMapType]) { (m, tagNew) =>
 
-  private def probInside():Double = null
+      // prob for each old
+      val probs = hmm.getTags().foldLeft(Map.empty[Double, Triple]) { (m, x) =>
+        val prob = optPrev match {
+          case Some(prev) => calcProb(hmm.getEmission(word, tagNew), hmm.getTransition(tagNew, x))
+          case _ => calcProb(hmm.getEmission(word, tagNew), hmm.getTransition(tagNew, hmm.startTag))
+        }
+        m + ((x, prob))
+      }
+      val prob = probs.keys.max
+      val prev = probs.getOrElse(probs.keys.max, "")
 
-  private def calcProbs(w: Triple, prevs: Option[Map[Triple, Double]]) = {
-    prevs match {
-      // Triple wird im vorherigen mit _3 = dieses Zeichen berechnet
-      case Some(previous) => previous.map { case (k, v) => getTagProbs(w, k.prev).valuesIterator.max }
-      case _ => getTagProbs(w, w.prev).valuesIterator.max
     }
   }
 
@@ -32,13 +34,22 @@ class ViterbiAnnotator(hmm: HiddenMarkovModel) {
     hmm.fit(sentences)
 
   def annotate(sentences: List[String]) = {
+    val laplace = (1.0 * 0.5) / ((hmm.getTags().size * hmm.getTags().size) * 0.5)
+
     sentences.map { s =>
       val triples = hmm.pred(s)
 
-      // List constructor: List(Word3Gram -> Map(POS-Tag3Gram -> Map(POS-Tag3Gram -> Probability)))
-      triples.foldLeft(List.empty[TableColumn]) { (m, triple) =>
+      // List constructor: List(Word3Gram, Map(POS-Tag3Gram -> (POS-Tag3Gram, Probability)))
+      triples.foldLeft(List.empty[TableColumn]) { (m, x) =>
         // Tabelle pro Satz
-        TableColumn(triple, getTagProbs(triple)) :: m
+
+        val column: TableColumn = m.size match {
+          case i if (i == 0) =>
+            TableColumn(x, getTagProbs(x, None, laplace))
+          case _ => case i if (i > 0) =>
+            TableColumn(x, getTagProbs(x, Some(m.last), laplace))
+        }
+       column :: m
       }
     }
   }
