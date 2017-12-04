@@ -5,13 +5,16 @@ import tutorial_2.Helper._
 import scala.util.matching.Regex
 
 
-case class Triple(key: String) {
+
+case class Model(emissions: NestedMapType, transitions: NestedMapType)
+
+case class Triple(key: String, last: String) {
   override def toString: String = key
 }
 
 object Triple {
   def apply(triple: List[String]): Triple =
-    Triple(s"${triple.head}_${triple(1)}_${triple.last}")
+    Triple(s"${triple.head}_${triple(1)}_${triple.last}", triple.last)
 }
 
 
@@ -33,7 +36,7 @@ class HiddenMarkovModel {
       merge(m, buildEmissionsInSentence(x._1, x._2))
     }
 
-  val startTag = Triple("#$")
+  val startTag = Triple("#$", "#$")
 
   private def buildTransitionsInSentence(posTags: List[Triple]): NestedMapType = {
     val transitions = Map(posTags.map { x => x -> Map.empty[Triple, Double] }: _*)
@@ -44,12 +47,12 @@ class HiddenMarkovModel {
           val tag = x._1
           val prev = posTags(i - 1)
           val m2 = m.getOrElse(tag, Map.empty[Triple, Double])
-          m + ((tag, m2 + ((prev, m2.getOrElse(prev, 0) + 1))))
+          m + ((tag, m2 + ((prev, m2.getOrElse(prev, 0.0) + 1.0))))
         case _ =>
           val tag = x._1
           val prev = startTag
           val m2 = m.getOrElse(tag, Map.empty[Triple, Double])
-          m + ((tag, m2 + ((prev, m2.getOrElse(prev, 0) + 1))))
+          m + ((tag, m2 + ((prev, m2.getOrElse(prev, 0.0) + 1.0))))
       }
     }
   }
@@ -84,6 +87,15 @@ class HiddenMarkovModel {
   def pred(sentence: String): List[Triple] =
     getTrigrams(getGrams, sentence)
 
+  def validations(sentence: String): List[Annotation] = {
+    val words = getTrigrams(getGrams, sentence).reverse
+    val posTags = getTrigrams(getPOSTags, sentence).reverse
+
+    words.zipWithIndex.map { word =>
+      Annotation(word._1.last, posTags(word._2).last)
+    }
+  }
+
   def getEmission(e: Triple, t: Triple): Double =
     emissions.getOrElse(e, Map.empty[Triple, Double]).getOrElse(t, 0.0)
 
@@ -91,5 +103,7 @@ class HiddenMarkovModel {
     transitions.getOrElse(t, Map.empty[Triple, Double]).getOrElse(prev, 0.0)
 
   def getTags(): List[Triple] =
-    transitions.keys.toList
+    transitions.filterKeys(_ != startTag).keys.toList
+
+  def getModel(): Model = Model(emissions, transitions)
 }

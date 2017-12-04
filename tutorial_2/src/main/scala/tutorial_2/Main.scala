@@ -3,11 +3,18 @@ package tutorial_2
 
 object Main extends App {
 
-  val parser = new Parser("/home/lukas/git-projects/ms_2017_18/tutorial_2/brown_training/test")
-  val data = parser.preprocess()
+  private val mode = "crossvalidation"
+  private val dirInput = "/Users/lukas/git-projects/ms_2017_18/tutorial_2/brown_training"
+  private val dirOutput = "/Users/lukas/git-projects/ms_2017_18/tutorial_2/brown_training/output"
 
-  val annotator = new ViterbiAnnotator(new HiddenMarkovModel())
-  annotator.fit(data)
-  annotator.annotate(data)
+  mode match {
+    case "train" => Helper.trainMode(dirInput)
+    case "annotate" => Helper.annotationMode(dirInput, dirOutput)
+    case "crossvalidation" =>
+      val now = System.nanoTime
+      val precision = Helper.crossValidationMode(dirInput)
+      val timeElapsed = (System.nanoTime - now) / 1000000000
+      println(s"Precision in 10FoldCrossvalidation was: $precision in $timeElapsed seconds")
+  }
 }
 
