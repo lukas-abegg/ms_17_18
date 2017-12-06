@@ -5,9 +5,6 @@ import tutorial_2.Helper._
 import scala.util.matching.Regex
 
 
-
-case class Model(emissions: NestedMapType, transitions: NestedMapType)
-
 case class Triple(key: String, last: String) {
   override def toString: String = key
 }
@@ -80,8 +77,8 @@ class HiddenMarkovModel {
     val words: List[List[Triple]] = sentences.map(getTrigrams(getGrams, _))
     val posTags: List[List[Triple]] = sentences.map(getTrigrams(getPOSTags, _))
 
-    this.transitions = logOf(buildTransitions(posTags))
-    this.emissions = logOf(buildEmissions(words, posTags))
+    this.transitions = averagedOverAll(buildTransitions(posTags))
+    this.emissions = averagedOverAll(buildEmissions(words, posTags))
   }
 
   def pred(sentence: String): List[Triple] =
@@ -102,8 +99,17 @@ class HiddenMarkovModel {
   def getTransition(t: Triple, prev: Triple): Double =
     transitions.getOrElse(t, Map.empty[Triple, Double]).getOrElse(prev, 0.0)
 
-  def getTags(): List[Triple] =
+  def getTags: List[Triple] =
     transitions.filterKeys(_ != startTag).keys.toList
 
-  def getModel(): Model = Model(emissions, transitions)
+  def loadModel(parser: Parser): Unit = {
+    val model: Model = parser.loadModelFromFile()
+    this.transitions = model.transitions
+    this.emissions = model.emissions
+  }
+
+  def saveModel(parser: Parser): Unit = {
+    val model = Model(emissions, transitions)
+    parser.writeModelToFile(model)
+  }
 }

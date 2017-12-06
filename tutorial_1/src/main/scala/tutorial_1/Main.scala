@@ -38,7 +38,7 @@ object Helper {
 
   def getParsedResults(path: String): List[Future[ParsedResult]] =
     getListOfXML(new File(path))
-      .map(file => Future(parseXml(file)))
+        .map(file => Future(parseXml(file)))
 
   private def getListOfXML(dir: File): List[File] =
     dir.listFiles.filter(f => f.isFile && f.getName.endsWith(".xml")).toList

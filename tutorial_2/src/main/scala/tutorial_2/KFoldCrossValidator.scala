@@ -1,9 +1,13 @@
 package tutorial_2
 
+import scala.concurrent.{Await, Future}
+import scala.concurrent.duration.Duration
+import scala.concurrent.ExecutionContext.Implicits.global
+
 class KFoldCrossValidator(k: Int, files: List[FileWithSentence]) {
 
   private def roundUp(size: Int) =
-    (size % k) match {
+    size % k match {
       case 0 => size / k
       case _ => (size - (size % k)) / k + 1
     }
@@ -23,33 +27,39 @@ class KFoldCrossValidator(k: Int, files: List[FileWithSentence]) {
     val validationData: List[List[Annotation]] = annotator.validations(testSet)
     val predictionData: List[List[Annotation]] = annotator.annotate(testSet)
 
-    val truePredictions = validationData.zipWithIndex.foldLeft(0.0) { (m, x) =>
+    val truePredictions = validationData.zipWithIndex.foldLeft((0, 0)) { (m, x) =>
 
       val precision = (x._1 zip predictionData(x._2)).foldLeft(m) { (t, s) =>
-        s._1.posTag.equals(s._2.posTag) match {
-          case true => t + 1
-          case _ => t
+        if (s._1.posTag.equals(s._2.posTag)) {
+          (t._1 + 1, t._2 + 1)
+        } else {
+          (t._1 + 1, t._2)
         }
       }
       precision
     }
-    truePredictions / validationData.size.toDouble * 100.0
+    val precision = truePredictions._2.toDouble / truePredictions._1.toDouble * 100.0
+    println(s"$truePredictions  / ${validationData.size.toDouble} => $precision")
+    precision
   }
 
   private def getSentence(sentences: List[FileWithSentence]): List[String] =
     sentences.flatMap(_.sentences)
 
+  private def parValidateSet(sets: List[List[FileWithSentence]], testSet: List[FileWithSentence], i: Int): Double = {
+    val trainSet = buildTrainData(sets, i)
+    validateSet(getSentence(trainSet), getSentence(testSet))
+  }
+
   def validate(): Double = {
     val sets = splitAsKFolds(files)
 
-    val precision = sets.zipWithIndex.foldLeft(0.0) { (m, x) =>
-      val trainSet = buildTrainData(sets, x._2)
-      val testSet =  x._1
-
-      val precision = validateSet(getSentence(trainSet), getSentence(testSet))
-      m + precision
+    val precisions = sets.zipWithIndex.map { set =>
+      Future(parValidateSet(sets, set._1, set._2))
     }
-    precision / sets.size
+
+    lazy val results = Await.result(Future.sequence(precisions), Duration.Inf)
+    results.sum / sets.size
   }
 }
 
