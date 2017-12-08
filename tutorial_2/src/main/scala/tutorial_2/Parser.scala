@@ -92,12 +92,12 @@ class Parser() {
 
 object Helper {
 
-  type NestedMapType = Map[Triple, Map[Triple, Double]]
-  type SimpleMapType = Map[Triple, Double]
+  type NestedMapType = Map[Unigram, Map[Unigram, Double]]
+  type SimpleMapType = Map[Unigram, Double]
 
   def merge(map1: NestedMapType, map2: NestedMapType): NestedMapType =
     (map1.keySet ++ map2.keySet)
-      .map(key => key -> mergeValues(map1.getOrElse(key, Map.empty[Triple, Double]), map2.getOrElse(key, Map.empty[Triple, Double])))
+      .map(key => key -> mergeValues(map1.getOrElse(key, Map.empty[Unigram, Double]), map2.getOrElse(key, Map.empty[Unigram, Double])))
       .toMap
 
   private def mergeValues(map1: SimpleMapType, map2: SimpleMapType): SimpleMapType =
@@ -108,7 +108,7 @@ object Helper {
   def averagedOverAll(emissions: NestedMapType): NestedMapType =
     emissions.map { e =>
       e._2 match {
-        case ts: Map[Triple, Double] =>
+        case ts: Map[Unigram, Double] =>
           val sum = e._2.values.sum
           (e._1, ts.map { t => (t._1, t._2 / sum) })
       }
