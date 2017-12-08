@@ -60,7 +60,7 @@ class ViterbiAnnotator(hmm: HiddenMarkovModel) {
         }
       }
     }
-    //                   last tag of trigram
+    //                   last tag of bigram
     BackTrace(word.last, pos._1.last, pos._2.prev)
   }
 
