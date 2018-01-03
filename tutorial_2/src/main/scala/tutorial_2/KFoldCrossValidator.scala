@@ -39,7 +39,7 @@ class KFoldCrossValidator(k: Int, files: List[FileWithSentence]) {
       precision
     }
     val precision = truePredictions._2.toDouble / truePredictions._1.toDouble * 100.0
-    println(s"$truePredictions  / ${validationData.size.toDouble} => $precision")
+    println(s"${truePredictions._2}  / ${truePredictions._1} => $precision")
     precision
   }
 

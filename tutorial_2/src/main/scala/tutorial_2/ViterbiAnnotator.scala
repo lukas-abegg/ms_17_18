@@ -2,9 +2,9 @@ package tutorial_2
 
 
 //                     Word-Triple /              Pos-Tags /  Prev-Tags / Prob
-case class TableColumn(wordGram: Triple, posGram: Map[Triple, PrevProb])
+case class TableColumn(wordGram: Unigram, posGram: Map[Unigram, PrevProb])
 
-case class PrevProb(prev: Triple, prob: Double)
+case class PrevProb(prev: Unigram, prob: Double)
 
 case class Annotation(word: String, posTag: String)
 
@@ -13,7 +13,7 @@ object Annotation {
     Annotation(backTrace.word, backTrace.pos)
 }
 
-case class BackTrace(word: String, pos: String, prev: Triple)
+case class BackTrace(word: String, pos: String, prev: Unigram)
 
 
 class ViterbiAnnotator(hmm: HiddenMarkovModel) {
@@ -22,14 +22,14 @@ class ViterbiAnnotator(hmm: HiddenMarkovModel) {
 
   private def calcProb(e: Double, t: Double, probPrev: Double) = e + t + probPrev
 
-  private def getTagProbs(word: Triple, optPrev: Option[TableColumn], laplace: Double): Map[Triple, PrevProb] = {
+  private def getTagProbs(word: Unigram, optPrev: Option[TableColumn], laplace: Double): Map[Unigram, PrevProb] = {
     // each new column
-    hmm.getTags.foldLeft(Map.empty[Triple, PrevProb]) { (m, tagNew) =>
+    hmm.getTags.foldLeft(Map.empty[Unigram, PrevProb]) { (m, tagNew) =>
 
       val prevProb = optPrev match {
         case Some(prevTag) =>
           // prob for each old
-          val probs = prevTag.posGram.foldLeft(Map.empty[Double, Triple]) { (m, x) =>
+          val probs = prevTag.posGram.foldLeft(Map.empty[Double, Unigram]) { (m, x) =>
             val e = smoothing(hmm.getEmission(word, tagNew), laplace)
             val t = smoothing(hmm.getTransition(tagNew, x._1), laplace)
             val probPrev = x._2.prob
@@ -37,7 +37,7 @@ class ViterbiAnnotator(hmm: HiddenMarkovModel) {
             m + ((prob, x._1))
           }
           val prob: Double = probs.keys.max
-          val prev: Triple = probs.getOrElse(prob, Triple("", ""))
+          val prev: Unigram = probs.getOrElse(prob, Unigram("", ""))
           PrevProb(prev, prob)
         case _ =>
           val e = smoothing(hmm.getEmission(word, tagNew), laplace)
@@ -71,7 +71,7 @@ class ViterbiAnnotator(hmm: HiddenMarkovModel) {
 
     prev match {
       case Some(prevProb) => BackTrace(wordTriple.last, posTriple.last, prevProb.prev)
-      case _ => BackTrace(wordTriple.last, posTriple.last, Triple(List("", "","")))
+      case _ => BackTrace(wordTriple.last, posTriple.last, Unigram(List("")))
     }
   }
 
@@ -82,7 +82,7 @@ class ViterbiAnnotator(hmm: HiddenMarkovModel) {
   def saveModel(parser: Parser): Unit = hmm.saveModel(parser)
 
   def annotate(sentences: List[String]): List[List[Annotation]] = {
-    val laplace = (1.0 * 0.5) / ((hmm.getTags.size * hmm.getTags.size) * 0.5)
+    val laplace = 0.000001 //(1.0 * 0.5) / ((hmm.getTags.size * hmm.getTags.size) * 0.5)
 
     val results = sentences.map { s =>
       val triples = hmm.pred(s)
@@ -106,7 +106,7 @@ class ViterbiAnnotator(hmm: HiddenMarkovModel) {
         }
         result :: m
       }
-      tableColumnsPredicted.take(tableColumnsPredicted.size-2).map(Annotation(_))
+      tableColumnsPredicted.map(Annotation(_))
     }
     results
   }
