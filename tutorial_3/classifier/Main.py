@@ -12,6 +12,7 @@ from sklearn.preprocessing import Normalizer
 from sklearn.model_selection import train_test_split
 from sklearn.model_selection import KFold
 from sklearn.metrics import confusion_matrix
+from sklearn.neighbors import KNeighborsClassifier
 
 import codecs
 
@@ -93,20 +94,21 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_
 
 vectorizer = TfidfVectorizer(binary=False, max_df=0.2, max_features=6000,
                                      min_df=7, stop_words='english', norm='l1',
-                                     use_idf=True, smooth_idf=False, analyzer='word', ngram_range=(1, 4))
+                                     use_idf=True, smooth_idf=False, analyzer='word', ngram_range=(1, 3))
+
 
 k_fold = KFold(n_splits=10)
-confusion_knn = np.array([[0, 0], [0, 0]])
+confusion = np.array([[0, 0], [0, 0]])
 
-acc_knn = []
+acc = []
 
 for i, (train, validate) in enumerate(k_fold.split(X_train)):
     X_tr, X_val = X_train[train], X_train[validate]
     y_tr, y_val = y_train[train], y_train[validate]
 
+    print("Done preprocessing")
     vectorizer.fit(X_tr, y_tr)
-
-    x_train_tfidf = vectorizer.fit_transform(X_tr, y_tr)
+    x_train_tfidf = vectorizer.transform(X_tr)
 
     print("Actual number of tfidf features: %d" % x_train_tfidf.get_shape()[1])
     print("Performing dimensionality reduction using LSA")
@@ -122,25 +124,46 @@ for i, (train, validate) in enumerate(k_fold.split(X_train)):
     explained_variance = svd.explained_variance_ratio_.sum()
     print("Explained variance of the SVD step: {}%".format(int(explained_variance * 100)))
 
-    knn = KNeighborsClassifier(n_neighbors=13)
-    knn.fit(x_train_lsa, y_tr)
-
     x_test_tfidf = vectorizer.transform(X_val)
     x_test_lsa = lsa.transform(x_test_tfidf)
 
-    acc_knn.append(knn.score(x_test_lsa, y_val))
-    confusion_knn += confusion_matrix(y_val, vectorizer.predict(x_test_lsa))
+    # KNeighborsClassifier
+    # knn = KNeighborsClassifier(n_neighbors=13)
+    # knn.fit(x_train_lsa, y_tr)
 
-acc_knn = np.asarray(acc_knn)
+    from sklearn.grid_search import GridSearchCV
+    from sklearn.svm import SVC
+
+    svm = SVC(C=10.0, gamma=1e-5, kernel='linear')
+
+    param_grid = [
+        {
+            'clf__C': [0.1, 1.0, 10.0, 100.0]
+        }
+    ]
+
+    gs_svm_tfidf = GridSearchCV(
+        svm,
+        param_grid,
+        scoring='accuracy',
+        cv=5,
+        n_jobs=-1
+    )
+
+    svm.fit(x_train_lsa, y_tr)
+    acc.append(svm.score(x_test_lsa, y_val))
+    confusion += confusion_matrix(y_val, svm.predict(x_test_lsa))
+
+acc = np.asarray(acc)
 
 print('Average Accuarcy')
-print('KNN: {}'.format(np.mean(acc_knn)))
+print('KNN: {}'.format(np.mean(acc)))
 
 print('Standard-deviation')
-print('KNN: {}'.format(np.std(acc_knn)))
+print('KNN: {}'.format(np.std(acc)))
 
 print('Variance')
-print('KNN: {}'.format(np.var(acc_knn)))
+print('KNN: {}'.format(np.var(acc)))
 
 print('Confusion - KNN')
-print(confusion_knn)
+print(confusion)
