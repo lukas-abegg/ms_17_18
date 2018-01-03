@@ -11,8 +11,8 @@ from utils.EmailParser import EmailParser
 
 class AbstractExperiment(object):
 
-    classifier = None
-    k_of_kfolds = None
+    classifier = ""
+    k_of_kfolds = ""
 
     # these methods have to be overwritten in each experiment
     def preprocessed_data(self, emails):
@@ -34,8 +34,8 @@ class AbstractExperiment(object):
     def get_classifier_instance(self):
         return self.classifier
 
-    def run(self, cross_validation):
-        parser = EmailParser("/Users/lukas/git-projects/ms_2017_18/tutorial_3/email-korpus")
+    def run(self, cross_validation, path):
+        parser = EmailParser(path)
         emails = parser.parse_emails()
         if cross_validation:
             self.__execute_with_kfold_cross_validation(self.get_k_of_kfold(), emails)
@@ -53,6 +53,7 @@ class AbstractExperiment(object):
     def __execute_without_kfold(self, emails):
         """This method returns a vector with predictions for all documents"""
         x, y, dict_data = self.preprocessed_data(emails)
+        print(str(len(x)))
         x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.33, random_state=42)
 
         self.train(x_train, y_train)
@@ -72,7 +73,7 @@ class AbstractExperiment(object):
         iteration = 0
 
         for train_index, test_index in skf.split(x, y):
-            print "Iteration ", iteration, ":", " Train ", train_index.shape, " Test ", test_index.shape
+            print "Iteration ", iteration, ":", " Train ", train_index.shape[0], " Test ", test_index.shape[0]
             iteration += 1
 
             x_train, x_test = x[train_index, :], x[test_index, :]

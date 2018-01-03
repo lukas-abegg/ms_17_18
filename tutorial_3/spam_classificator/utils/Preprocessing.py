@@ -1,6 +1,7 @@
 import pandas as pd
 import string
 import nltk
+from nltk.corpus import stopwords
 
 
 class Preprocessing:
@@ -17,17 +18,12 @@ class Preprocessing:
         df['label'].replace(self.__dict, inplace=True)
         return df
 
-    # clean up unicode in body
-    @staticmethod
-    def __decode(row):
-        row = row['body']
-        return row.encode('utf-8').decode('ascii', 'ignore')
-
     @staticmethod
     def tokenize(text):
         numbers = set(string.digits)
         whitespace = set(string.whitespace)
         exclude = set(string.punctuation)
+        stop_words = set(stopwords.words('english'))
 
         sent_tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
         if len(text):
@@ -38,7 +34,8 @@ class Preprocessing:
             if len(word) > 3:
                 word = ''.join(ch for ch in word if (ch not in exclude
                                                      and ch not in numbers
-                                                     and ch not in whitespace))
+                                                     and ch not in whitespace
+                                                     and ch not in stop_words))
                 if len(word) > 3:
                     text.append(word)
 
@@ -62,9 +59,7 @@ class Preprocessing:
             label_list.append(labels[label])
         return label_list
 
-    # body = utf-8-encoded
     def pre_process(self, df):
-        df['body'] = df.apply(self.__decode, axis=1)
         headers = list(df.columns.values)
         label_dict = self.__gen_label_dict(df)
         label_list = self.__gen_label_list(df, label_dict)
