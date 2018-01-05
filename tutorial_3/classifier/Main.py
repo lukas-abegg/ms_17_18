@@ -118,7 +118,7 @@ def train_model(model_name, ham_directory, spam_directory):
         {
             # 'svd__n_components': [90, 150, 250, 500, 1000],
             'clf__penalty': ['l1', 'l2'],
-            'clf__C': [0.1, 1.0, 10.0, 100.0]
+            #'clf__C': [0.1, 1.0, 10.0, 100.0]
         }
     ]
 
@@ -194,10 +194,9 @@ def parse_message(msg):
         # get rid of html markup
         line = re.sub('<[^>]*>', '', line)
 
-        # get rid of stopwords
-        line = tokenize(line)
-
         if in_body:
+            # get rid of stopwords
+            line = tokenize(line)
             body += line.strip()
             email['body'] = body
         elif line.startswith('From:'):
@@ -206,6 +205,8 @@ def parse_message(msg):
             sender = sender[5:]
             email['sender'] = sender
         elif line.startswith('Subject:'):
+            # get rid of stopwords
+            line = tokenize(line)
             subject = line.strip()
             subject = subject[8:]
             email['subject'] = subject
