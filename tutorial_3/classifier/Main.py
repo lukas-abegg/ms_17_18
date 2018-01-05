@@ -8,7 +8,11 @@ import nltk
 import matplotlib.pyplot as plt
 import os
 import re
+import string
+import unicodedata
+
 from nltk.corpus import stopwords
+import spacy
 
 import scipy.sparse as sp
 
@@ -17,13 +21,16 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
 from sklearn.model_selection import GridSearchCV
 from sklearn.externals import joblib
-from sklearn.base import TransformerMixin
+from sklearn.base import TransformerMixin, BaseEstimator
 from sklearn.pipeline import Pipeline, make_pipeline, make_union
 from sklearn.pipeline import FeatureUnion
 from sklearn.metrics import f1_score, recall_score, precision_score
+from sklearn.preprocessing import Normalizer
+from sklearn.decomposition import TruncatedSVD
+import ssl
 
 
-class ItemSelector(TransformerMixin):
+class ItemSelector(BaseEstimator, TransformerMixin):
     def __init__(self, column):
         self.column = column
 
@@ -78,60 +85,65 @@ def train_model(model_name, ham_directory, spam_directory):
     # body pipe
     body_pipe = make_pipeline(
         ItemSelector('body'),
-        TfidfVectorizer(encoding='latin-1', lowercase=False, ngram_range=(1, 3))
+        TfidfVectorizer(encoding='latin1', lowercase=False, ngram_range=(1, 3))
     )
 
     # subject pipe
     subject_pipe = make_pipeline(
         ItemSelector('subject'),
-        TfidfVectorizer(encoding='latin-1', lowercase=False, ngram_range=(1, 3))
+        TfidfVectorizer(encoding='latin1', lowercase=False, ngram_range=(1, 3))
     )
 
     # sender pipe
     sender_pipe = make_pipeline(
         ItemSelector('sender'),
-        TfidfVectorizer(encoding='latin-1', lowercase=False, ngram_range=(1, 3))
+        TfidfVectorizer(encoding='latin1', lowercase=False, ngram_range=(1, 3))
     )
 
     feature_union = make_union(body_pipe, subject_pipe, sender_pipe)
 
     lr_tfidf = Pipeline([
         ('union', feature_union),
+        ('svd', TruncatedSVD(n_components=500)),
+        ('norm', Normalizer(copy=False)),
         ('clf', LogisticRegression(random_state=0, C=100.0, penalty="l2"))
     ])
 
     x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.3, random_state=42)
     x_train = pd.DataFrame(x_train, columns=['body', 'subject', 'sender'])
     x_test = pd.DataFrame(x_test, columns=['body', 'subject', 'sender'])
+
     # Tune LR
-    # param_grid = [
-    #     {
-    #         'clf__penalty': ['l1', 'l2'],
-    #         'clf__C': [0.1, 1.0, 10.0, 100.0]
-    #     }
-    # ]
-    #
-    # gs_lr = GridSearchCV(
-    #     lr_tfidf,
-    #     param_grid,
-    #     scoring='accuracy',
-    #     cv=5,
-    #     n_jobs=-1
-    # )
-    #
-    # gs_lr.fit(x_train, y_train)
-    # print('Parameter: {}'.format(gs_lr.best_params_))
-    # print('Accuracy (CV): {}'.format(gs_lr.best_score_))
-    # best_classifier = gs_lr.best_estimator_
-    lr_tfidf.fit(x_train, y_train)
+    param_grid = [
+        {
+            # 'svd__n_components': [90, 150, 250, 500, 1000],
+            'clf__penalty': ['l1', 'l2'],
+            'clf__C': [0.1, 1.0, 10.0, 100.0]
+        }
+    ]
+
+    gs_lr = GridSearchCV(
+        lr_tfidf,
+        param_grid,
+        scoring='accuracy',
+        cv=5,
+        n_jobs=-1
+    )
+
+    gs_lr.fit(x_train, y_train)
+    print('Parameter: {}'.format(gs_lr.best_params_))
+    print('Accuracy (CV): {}'.format(gs_lr.best_score_))
+
+    best_classifier = gs_lr.best_estimator_
+    best_classifier.fit(x_train, y_train)
 
     print("Train data:  -------------------")
-    print_scores(lr_tfidf, x_train, y_train)
+    print_scores(best_classifier, x_train, y_train)
     print("Test data:   -------------------")
-    print_scores(lr_tfidf, x_test, y_test)
+    print_scores(best_classifier, x_test, y_test)
 
     # Train on the complete corpus
-    best_classifier = lr_tfidf.fit(x, y)
+    best_classifier = best_classifier.fit(x, y)
 
     # Save trained model
     joblib.dump(best_classifier, '{}.clf'.format(model_name))
@@ -140,7 +152,7 @@ def train_model(model_name, ham_directory, spam_directory):
 def classify_mails(model_name, email_directory, result_file):
     df = make_df(email_directory, 2)  # label gets dropped later anyway
     x = df[['body', 'subject', 'sender']]
-    model_name = model_name+".clf"
+    model_name = model_name + ".clf"
     clf = joblib.load(model_name)
     y = clf.predict(x)
     my_list = y.tolist()
@@ -160,7 +172,7 @@ def convert_files(directory):
 
     for mail in os.listdir(directory_path):
         file_path = directory_path + "/" + mail
-        with codecs.open(file_path, "r", encoding='latin-1') as m:
+        with codecs.open(file_path, "r", encoding='ascii') as m:
             mail_dict = parse_message(m)
             yield mail_dict
 
@@ -170,7 +182,6 @@ def parse_message(msg):
     email = {'body': '', 'subject': '', 'sender': '', 'label': ''}
     in_body = False
     exclude_terms = ['URL:', 'Date:', 'Return-Path:']
-    sw = stopwords.words("english")
 
     for line in msg:
         if line == '\n':
@@ -184,7 +195,7 @@ def parse_message(msg):
         line = re.sub('<[^>]*>', '', line)
 
         # get rid of stopwords
-        line = ' '.join([word for word in line.split() if word.lower() not in sw])
+        line = tokenize(line)
 
         if in_body:
             body += line.strip()
@@ -201,6 +212,30 @@ def parse_message(msg):
 
         # Optionally an else branch could extract more features
     return email
+
+
+def tokenize(text):
+    numbers = set(string.digits)
+    whitespace = set(string.whitespace)
+    exclude = set(string.punctuation)
+    stop_words = set(stopwords.words('english'))
+
+    parser = spacy.load('en')
+
+    tokens = parser(text)
+    tokens = [token.orth_ for token in tokens if not token.orth_.isspace()]
+
+    text = []
+    for word in tokens:
+        if len(word) > 3:
+            word = ''.join(ch for ch in word if (ch not in exclude
+                                                 and ch not in numbers
+                                                 and ch not in whitespace))
+            if word not in stop_words:
+                text.append(word)
+
+    text = ' '.join(word for word in text)
+    return text
 
 
 def calc_scores(lr_tfidf, x, y):
@@ -243,4 +278,10 @@ def make_df(path, label):
 
 
 if __name__ == '__main__':
+    try:
+        _create_unverified_https_context = ssl._create_unverified_context
+    except AttributeError:
+        pass
+    else:
+        ssl._create_default_https_context = _create_unverified_https_context
     main()
