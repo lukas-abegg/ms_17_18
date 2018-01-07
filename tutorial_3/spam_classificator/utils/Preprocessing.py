@@ -27,7 +27,7 @@ class Preprocessing:
 
         sent_tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
         if len(text):
-            sentences = sent_tokenizer.tokenize(text)
+            sentences = sent_tokenizer.tok
 
         text = []
         for word in sentences:

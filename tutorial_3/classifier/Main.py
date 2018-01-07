@@ -1,33 +1,28 @@
 #! /usr/bin/python3
-import codecs
-import sys
-import pickle
-import pandas as pd
-import numpy as np
-import nltk
-import matplotlib.pyplot as plt
 import os
 import re
+import ssl
 import string
-import unicodedata
+import sys
 
+import nltk
 from nltk.corpus import stopwords
-import spacy
+from nltk.tokenize import word_tokenize
 
-import scipy.sparse as sp
+import numpy as np
+import pandas as pd
 
+from sklearn.base import TransformerMixin, BaseEstimator
+from sklearn.decomposition import TruncatedSVD
+from sklearn.externals import joblib
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import train_test_split
-from sklearn.model_selection import GridSearchCV
-from sklearn.externals import joblib
-from sklearn.base import TransformerMixin, BaseEstimator
-from sklearn.pipeline import Pipeline, make_pipeline, make_union
-from sklearn.pipeline import FeatureUnion
+from sklearn.metrics import confusion_matrix
 from sklearn.metrics import f1_score, recall_score, precision_score
+from sklearn.model_selection import KFold
+from sklearn.model_selection import train_test_split
+from sklearn.pipeline import Pipeline, make_pipeline, make_union
 from sklearn.preprocessing import Normalizer
-from sklearn.decomposition import TruncatedSVD
-import ssl
 
 
 class ItemSelector(BaseEstimator, TransformerMixin):
@@ -45,20 +40,16 @@ def main():
     if len(sys.argv) < 2:
         # print('Please specifiy the mode you want to use (train / classify)')
         model_name = "model"
-        ham_directory = "../email-korpus/testing/train-ham"
-        spam_directory = "../email-korpus/testing/train-spam"
+        ham_directory = "../email-korpus/train-ham"
+        spam_directory = "../email-korpus/train-spam"
         train_model(model_name, ham_directory, spam_directory)
         print('---- Training sucessfull ----')
-        email_directory = "../email-korpus/testing/test"
-        result_file = "result"
-        classify_mails(model_name, email_directory, result_file)
-        print('---- Prediction completed ----')
     elif sys.argv[1].lower() == 'train' and len(sys.argv) == 5:
         model_name = sys.argv[2]
         ham_directory = sys.argv[3]
         spam_directory = sys.argv[4]
         train_model(model_name, ham_directory, spam_directory)
-        print('---- Training sucessfull ----')
+        print('---- Training sucessfull, model saved ----')
     elif sys.argv[1].lower() == 'classify':
         model_name = sys.argv[2]
         email_directory = sys.argv[3]
@@ -74,6 +65,7 @@ def train_model(model_name, ham_directory, spam_directory):
     nltk.download('stopwords')
     df_ham = make_df(ham_directory, 0)
     df_spam = make_df(spam_directory, 1)
+    print("---------    Preprocessing done   ---------")
 
     # Create Test and Training data
     df_final = pd.concat([df_ham, df_spam])
@@ -85,19 +77,19 @@ def train_model(model_name, ham_directory, spam_directory):
     # body pipe
     body_pipe = make_pipeline(
         ItemSelector('body'),
-        TfidfVectorizer(encoding='latin1', lowercase=False, ngram_range=(1, 3))
+        TfidfVectorizer(encoding='latin1', lowercase=False, ngram_range=(1, 4))
     )
 
     # subject pipe
     subject_pipe = make_pipeline(
         ItemSelector('subject'),
-        TfidfVectorizer(encoding='latin1', lowercase=False, ngram_range=(1, 3))
+        TfidfVectorizer(encoding='latin1', lowercase=False, ngram_range=(1, 4))
     )
 
     # sender pipe
     sender_pipe = make_pipeline(
         ItemSelector('sender'),
-        TfidfVectorizer(encoding='latin1', lowercase=False, ngram_range=(1, 3))
+        TfidfVectorizer(encoding='latin1', lowercase=False, ngram_range=(1, 4))
     )
 
     feature_union = make_union(body_pipe, subject_pipe, sender_pipe)
@@ -113,40 +105,20 @@ def train_model(model_name, ham_directory, spam_directory):
     x_train = pd.DataFrame(x_train, columns=['body', 'subject', 'sender'])
     x_test = pd.DataFrame(x_test, columns=['body', 'subject', 'sender'])
 
-    # Tune LR
-    param_grid = [
-        {
-            # 'svd__n_components': [90, 150, 250, 500, 1000],
-            'clf__penalty': ['l1', 'l2'],
-            #'clf__C': [0.1, 1.0, 10.0, 100.0]
-        }
-    ]
-
-    gs_lr = GridSearchCV(
-        lr_tfidf,
-        param_grid,
-        scoring='accuracy',
-        cv=5,
-        n_jobs=-1
-    )
-
-    gs_lr.fit(x_train, y_train)
-    print('Parameter: {}'.format(gs_lr.best_params_))
-    print('Accuracy (CV): {}'.format(gs_lr.best_score_))
-
-    best_classifier = gs_lr.best_estimator_
-    best_classifier.fit(x_train, y_train)
+    lr_tfidf.fit(x_train, y_train)
 
     print("Train data:  -------------------")
-    print_scores(best_classifier, x_train, y_train)
+    print_scores(lr_tfidf, x_train, y_train)
     print("Test data:   -------------------")
-    print_scores(best_classifier, x_test, y_test)
+    print_scores(lr_tfidf, x_test, y_test)
+    print("Crossvalidation data:   -------------------")
+    cross_valid(lr_tfidf, x, y)
 
     # Train on the complete corpus
-    best_classifier = best_classifier.fit(x, y)
+    lr_tfidf = lr_tfidf.fit(x, y)
 
     # Save trained model
-    joblib.dump(best_classifier, '{}.clf'.format(model_name))
+    joblib.dump(lr_tfidf, '{}.clf'.format(model_name))
 
 
 def classify_mails(model_name, email_directory, result_file):
@@ -172,7 +144,7 @@ def convert_files(directory):
 
     for mail in os.listdir(directory_path):
         file_path = directory_path + "/" + mail
-        with codecs.open(file_path, "r", encoding='ascii') as m:
+        with open(file_path, "r", encoding='latin-1') as m:
             mail_dict = parse_message(m)
             yield mail_dict
 
@@ -216,24 +188,16 @@ def parse_message(msg):
 
 
 def tokenize(text):
-    numbers = set(string.digits)
-    whitespace = set(string.whitespace)
     exclude = set(string.punctuation)
     stop_words = set(stopwords.words('english'))
 
-    parser = spacy.load('en')
-
-    tokens = parser(text)
-    tokens = [token.orth_ for token in tokens if not token.orth_.isspace()]
+    tokens = word_tokenize(text)
 
     text = []
     for word in tokens:
-        if len(word) > 3:
-            word = ''.join(ch for ch in word if (ch not in exclude
-                                                 and ch not in numbers
-                                                 and ch not in whitespace))
-            if word not in stop_words:
-                text.append(word)
+        if len(word) > 3 and (word not in stop_words
+                              and word not in exclude):
+            text.append(word)
 
     text = ' '.join(word for word in text)
     return text
@@ -265,6 +229,31 @@ def print_scores(lr_tfidf, x, y):
     print("Precision in Test: " + str(np.mean(precision)))
     print("Recall in Test: " + str(np.mean(recall)))
     print("F1 in Test: " + str(np.mean(f1)))
+
+
+def cross_valid(lr_tfidf, x, y):
+    k_fold = KFold(n_splits=10)
+    confusion_lr = np.array([[0, 0], [0, 0]])
+    acc_lr = []
+
+    for i, (train, validate) in enumerate(k_fold.split(x)):
+        x_tr, x_val = x.values[train], x.values[validate]
+        y_tr, y_val = y[train], y[validate]
+
+        x_tr = pd.DataFrame(x_tr, columns=['body', 'subject', 'sender'])
+        x_val = pd.DataFrame(x_val, columns=['body', 'subject', 'sender'])
+
+        lr_tfidf.fit(x_tr, y_tr)
+
+        acc_lr.append(lr_tfidf.score(x_val, y_val))
+        confusion_lr += confusion_matrix(y_val, lr_tfidf.predict(x_val))
+
+    print('Confusion - LR')
+    print(confusion_lr)
+    acc_lr = np.asarray(acc_lr)
+    print('Mean-Accuracy LR: {}'.format(np.mean(acc_lr)))
+    print('Standard Deviation LR: {}'.format(np.std(acc_lr)))
+    print('Variance LR: {}'.format(np.var(acc_lr)))
 
 
 def make_df(path, label):
