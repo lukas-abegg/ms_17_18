@@ -96,9 +96,10 @@ def train_model(model_name, ham_directory, spam_directory):
         ('clf', LogisticRegression(random_state=0, C=100.0, penalty="l2"))
     ])
 
-    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.3, random_state=42)
-    x_train = pd.DataFrame(x_train, columns=['body', 'subject', 'sender'])
-    x_test = pd.DataFrame(x_test, columns=['body', 'subject', 'sender'])
+    ## Validation part ##
+    #x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.3, random_state=42)
+    #x_train = pd.DataFrame(x_train, columns=['body', 'subject', 'sender'])
+    #x_test = pd.DataFrame(x_test, columns=['body', 'subject', 'sender'])
 
     #print("Fit model:  -------------------")
     #lr_tfidf.fit(x_train, y_train)
@@ -107,10 +108,11 @@ def train_model(model_name, ham_directory, spam_directory):
     #print("Measure score in test data:   -------------------")
     #print_scores(lr_tfidf, x_test, y_test)
 
-    print("Measure score in crossvalidation:   -------------------")
-    cross_valid(lr_tfidf, x, y)
+    #print("Measure score in crossvalidation:   -------------------")
+    #cross_valid(lr_tfidf, x, y)
 
     # Train on the complete corpus
+    print("Fit model:  -------------------")
     lr_tfidf = lr_tfidf.fit(x, y)
 
     # Save trained model
