@@ -38,12 +38,7 @@ class ItemSelector(BaseEstimator, TransformerMixin):
 
 def main():
     if len(sys.argv) < 2:
-        # print('Please specifiy the mode you want to use (train / classify)')
-        model_name = "model"
-        ham_directory = "../email-korpus/train-ham"
-        spam_directory = "../email-korpus/train-spam"
-        train_model(model_name, ham_directory, spam_directory)
-        print('---- Training sucessfull ----')
+        print('Please specifiy the mode you want to use (train / classify)')
     elif sys.argv[1].lower() == 'train' and len(sys.argv) == 5:
         model_name = sys.argv[2]
         ham_directory = sys.argv[3]
