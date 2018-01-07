@@ -100,13 +100,14 @@ def train_model(model_name, ham_directory, spam_directory):
     x_train = pd.DataFrame(x_train, columns=['body', 'subject', 'sender'])
     x_test = pd.DataFrame(x_test, columns=['body', 'subject', 'sender'])
 
-    lr_tfidf.fit(x_train, y_train)
+    #print("Fit model:  -------------------")
+    #lr_tfidf.fit(x_train, y_train)
+    #print("Measure score in train data:  -------------------")
+    #print_scores(lr_tfidf, x_train, y_train)
+    #print("Measure score in test data:   -------------------")
+    #print_scores(lr_tfidf, x_test, y_test)
 
-    print("Train data:  -------------------")
-    print_scores(lr_tfidf, x_train, y_train)
-    print("Test data:   -------------------")
-    print_scores(lr_tfidf, x_test, y_test)
-    print("Crossvalidation data:   -------------------")
+    print("Measure score in crossvalidation:   -------------------")
     cross_valid(lr_tfidf, x, y)
 
     # Train on the complete corpus

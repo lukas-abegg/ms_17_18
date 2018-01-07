@@ -1,8 +1,6 @@
-os
-re
+## python3 (version 3.6) ##
 ssl
 string
-sys
 nltk
 numpy
 pandas
