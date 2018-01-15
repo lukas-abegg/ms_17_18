@@ -66,7 +66,7 @@ def main():
 
 
 def train_tagger(input_file):
-    gold_std = build_dict_from_file(input_file)
+    gold_std = build_dict_from_input_file(input_file)
     additional_dictionary = build_additional_dict()
     dictionary = concatenate_dicts(gold_std, additional_dictionary)
     stopwords_list = build_stopwords()
@@ -76,13 +76,13 @@ def train_tagger(input_file):
 
 
 def tag_tokens(input_file, output_file):
-    tokens = read_tokens_from_file(input_file)
+    tokens = read_tokens_from_input_file(input_file)
     tagger = NERTagger()
     tagged_list = tagger.tag_tokens(tokens)
     write_annotations_to_file(tagged_list, output_file)
 
 
-def build_dict_from_file(path):
+def build_dict_from_input_file(path):
     entities_from_file = {}
     with open(path, "r", encoding='latin-1') as f:
         for token in get_tokens_from_input_file(f.readlines()):
@@ -114,7 +114,7 @@ def build_stopwords():
     return set(stopwords_list).union(set(stopwords.words('english')))
 
 
-def read_tokens_from_file(path):
+def read_tokens_from_input_file(path):
     tokens = []
     with open(path, "r", encoding='latin-1') as f:
         for token in get_tokens_from_input_file(f.readlines()):
