@@ -2,17 +2,20 @@
 import sys
 import string
 import ssl
+import math
 from typing import List
 
 import pickle
 
 import nltk
+from nltk import SnowballStemmer
+from nltk import edit_distance
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 
 
 class Token:
-    def __init__(self, value, tag) -> object:
+    def __init__(self, value, tag):
         self.value = value
         self.tag = tag
 
@@ -41,13 +44,58 @@ class NERTagger:
     def tag_tokens(self, words: List[Token]):
         tagged_words = []
         for word in words:
-            if word.value in self.stopwords_list or word.value in self.punctuation:
+            if self.__check_no_entity(word):
                 tagged_words.append(Token(word.value, self.__tag_no_entity))
-            elif word.value in self.dictionary:
-                tagged_words.append(Token(word.value, self.dictionary[word.value]))
             else:
-                tagged_words.append(Token(word.value, self.__tag_no_entity))
+                tag = self.__check_rules(word)
+                tagged_words.append(Token(word.value, tag))
         return tagged_words
+
+    def __check_no_entity(self, word: Token) -> bool:
+        if word.value in self.stopwords_list:
+            return True
+        elif word.value in self.punctuation:
+            return True
+        else:
+            return False
+
+    def __check_rules(self, word: Token) -> str:
+        keys = list(self.dictionary.keys())
+
+        if word in self.dictionary:
+            return self.dictionary[word].key
+        else:
+            found, tag = self.__check_distance(word, keys)
+            return tag
+            # if found:
+            # return tag
+            # else:
+            # found, tag = self.__check_word_stems(word, keys)
+            # return tag
+        # elif for further rules
+
+    def __check_distance(self, word: Token, keys) -> (bool, str):
+        # calculate edit-distances
+        distances = list(map(lambda x: edit_distance(word.value, x), keys))
+
+        # get index where distance is minimal - conflict resolution happens here as we just pick first index_min
+        index_min = min(range(len(distances)), key=distances.__getitem__)
+
+        if distances[index_min] < round(math.floor(len(word.value)) * 0.9):
+            return True, self.dictionary[keys[index_min]]
+        else:
+            return False, self.__tag_no_entity
+
+    def __check_word_stems(self, word, keys):
+        stemmer = SnowballStemmer("english")
+        stemmed_word = stemmer.stem(word.value)
+        stemmed_keys = list(map(lambda x: stemmer.stem(x), keys))
+
+        if stemmed_word in stemmed_keys:
+            idx = stemmed_keys.index(stemmed_word)
+            return True, self.dictionary[keys[idx]]
+
+        return False
 
 
 def main():
@@ -125,7 +173,7 @@ def read_tokens_from_input_file(path):
 def write_annotations_to_file(annotations: List[Token], output_file):
     my_file = open(output_file, 'w')
     for token in annotations:
-        my_file.write("{} \t {}\n".format(token.value, token.tag))
+        my_file.write("{}\t{}\n".format(token.value, token.tag))
     my_file.close()
 
 
