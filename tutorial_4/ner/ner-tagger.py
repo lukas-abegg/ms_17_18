@@ -9,7 +9,8 @@ import pickle
 
 import nltk
 from nltk import SnowballStemmer
-from nltk import edit_distance, pos_tag
+from nltk import edit_distance, jaccard_distance, pos_tag
+from nltk.util import ngrams
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 
@@ -80,16 +81,32 @@ class NERTagger:
         return tag
 
     def __check_distance(self, word: Token, keys) -> (bool, str):
-        # calculate edit-distances
-        distances = list(map(lambda x: edit_distance(word.value, x), keys))
+        # distance, index_min = self.__min_edit_distance(word, keys)
+        distance, index_min = self.__min_jaccard_distance(word, keys, 3)
 
-        # get index where distance is minimal - conflict resolution happens here as we just pick first index_min
-        index_min = min(range(len(distances)), key=distances.__getitem__)
-
-        if distances[index_min] < round(math.floor(len(word.value)) * 0.9):
+        if distance < round(math.floor(len(word.value)) * 0.9):
             return True, self.dictionary[keys[index_min]]
         else:
             return False, self.__tag_no_entity
+
+    @staticmethod
+    def __min_edit_distance(word: Token, keys):
+        # calculate edit-distances
+        distances = list(map(lambda x: edit_distance(word.value, x), keys))
+        # get index where distance is minimal - conflict resolution happens here as we just pick first index_min
+        index_min = min(range(len(distances)), key=distances.__getitem__)
+        return distances[index_min], index_min
+
+    @staticmethod
+    def __min_jaccard_distance(word: Token, keys, gram_number):
+        # calculate edit-distances
+        distances = ((jaccard_distance(set(ngrams(word.value, gram_number)),
+                                       set(ngrams(key, gram_number))), key)
+                     for key in keys)
+        # get index where distance is minimal - conflict resolution happens here as we just pick first index_min
+        closest = min(distances)
+
+        return closest[0], keys.index(closest[1])
 
     def __check_word_stems(self, word, keys) -> (bool, str):
         stemmer = SnowballStemmer("english")
