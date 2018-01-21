@@ -13,7 +13,6 @@ patients	O
 with	O
 hemiparesis	O
 .	O
-
 This	O
 approach	O
 enables	O
@@ -47,7 +46,6 @@ and	O
 metabolic	O
 states	O
 .	O
-
 Biochemical	O
 experiments	O
 have	O
@@ -96,10 +94,8 @@ CopG	B-protein
 primary	O
 target	O
 .	O
-
 3	O
 .	O
-
 Echocardiography	O
 revealed	O
 right	O
@@ -116,7 +112,6 @@ of	O
 cardiac	O
 tamponade	O
 .	O
-
 Urine	O
 samples	O
 collected	O
@@ -130,7 +125,6 @@ can	O
 test	O
 positive	O
 .	O
-
 In	O
 the	O
 ultramarathon	O
@@ -201,7 +195,6 @@ ng	O
 ml	O
 )	O
 .	O
-
 A	B-protein
 significant	O
 direct	O
@@ -226,7 +219,6 @@ urinary	O
 flow	O
 rate	O
 .	O
-
 In	O
 a	O
 previous	O
@@ -236,7 +228,6 @@ Brandl	O
 ,	O
 C	O
 .	O
-
 Thrombolysis	O
 was	O
 followed	O
@@ -292,7 +283,6 @@ the	O
 groups	O
 )	O
 .	O
-
 The	O
 latter	O
 was	O
@@ -334,7 +324,6 @@ tumor	O
 cells	O
 only	O
 .	O
-
 Comparison	O
 of	O
 the	O
@@ -360,12 +349,10 @@ the	O
 coding	O
 region	O
 .	O
-
 Antivitamin	O
 K	O
 agents	O
 .	O
-
 Simultaneously	O
 a	O
 greater	O
@@ -4235,7 +4222,7 @@ high	O
 dose	O
 MTX	O
 and	O
-ara	B-protein
+ara	O
 -	O
 C	O
 is	O
@@ -5892,7 +5879,7 @@ our	O
 results	O
 indicate	O
 that	O
-thrombin	B-protein
+thrombin	O
 -	O
 stimulated	O
 vascular	O
@@ -27400,7 +27387,7 @@ Apis	O
 mellifera	O
 )	O
 and	O
-wasp	B-protein
+wasp	O
 (	O
 Vespula	O
 spec	O
@@ -49519,7 +49506,7 @@ and	O
 e	O
 )	O
 the	O
-deepest	B-protein
+deepest	O
 cartilage	O
 layer	O
 had	O
@@ -56757,7 +56744,7 @@ toxemia	O
 and	O
 only	O
 2	O
-ran	B-protein
+ran	O
 a	O
 fever	O
 above	O
@@ -69462,7 +69449,7 @@ P	O
 0001	O
 )	O
 than	O
-HD	B-protein
+HD	O
 patients	O
 .	O
 UPMC	O
@@ -70129,7 +70116,7 @@ with	O
 short	O
 -	O
 acting	O
-beta2	B-protein
+beta2	O
 -	O
 agonist	O
 alone	O
@@ -91437,7 +91424,7 @@ triazeno	O
 ,	O
 vincristine	O
 ,	O
-bis	B-protein
+bis	O
 -	O
 chloroethyl	O
 nitrosourea	O
@@ -99319,7 +99306,7 @@ acid	O
 base	O
 quantities	O
 and	O
-hemoglobin	B-protein
+hemoglobin	O
 -	O
 oxygen	O
 affinity	O
@@ -115743,7 +115730,7 @@ the	O
 presence	O
 of	O
 two	O
-cis	B-protein
+cis	O
 -	O
 acting	O
 elements	O
@@ -120278,7 +120265,7 @@ and	O
 the	O
 septum	O
 was	O
-patched	B-protein
+patched	O
 with	O
 a	O
 single	O
@@ -129804,7 +129791,7 @@ Multiple	O
 SW16	O
 -	O
 dependent	O
-cis	B-protein
+cis	O
 -	O
 acting	O
 elements	O
@@ -135281,7 +135268,7 @@ V	O
 .	O
 The	O
 disease	O
-ran	B-protein
+ran	O
 an	O
 atypical	O
 course	O
@@ -154690,7 +154677,7 @@ tracheal	O
 cartilage	O
 matrix	O
 are	O
-collagen	B-protein
+collagen	O
 -	O
 rich	O
 and	O
@@ -165258,7 +165245,7 @@ ethanolaminephosphate	O
 to	O
 the	O
 inner	O
-alpha1	B-protein
+alpha1	O
 -	O
 2	O
 -	O
@@ -171348,7 +171335,7 @@ mixture	O
 of	O
 UTP	O
 and	O
-thio	B-protein
+thio	O
 -	O
 UTP	O
 .	O
@@ -173823,7 +173810,7 @@ faces	O
 .	O
 Roux	O
 -	O
-en	B-protein
+en	O
 -	O
 Y	B-protein
 gastroenterostomy	O
