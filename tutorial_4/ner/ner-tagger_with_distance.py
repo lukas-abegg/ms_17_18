@@ -77,8 +77,7 @@ class NERTagger:
             if word.value in keys:
                 return self.dictionary[word.value]
             else:
-                tag = self.__tag_no_entity
-            # found, tag = self.__check_distance(word, keys)
+                found, tag = self.__check_distance(word, keys)
             # if found:
             #     return tag
             # else:
