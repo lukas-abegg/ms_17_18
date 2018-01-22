@@ -1,0 +1,8 @@
+#! /usr/bin/python3
+string
+ssl
+math
+typing
+pickle
+numpy
+nltk
