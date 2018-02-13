@@ -1,4 +1,3 @@
-#!/usr/bin/env bash
 #Execute with command: bash validate_java.sh > validation_result.txt
 
 END=10

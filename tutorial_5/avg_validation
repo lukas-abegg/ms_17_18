@@ -1,0 +1,32 @@
+p = []
+r = []
+f1 = []
+
+>>> with open('validation_result.txt', "r", encoding='latin-1') as f:
+...     for w in f.readlines():
+...             if 'Precision' in w:
+...                     p.append(w.split()[1])
+...             if 'Recall' in w:
+...                     r.append(w.split()[1])
+...             if 'F1' in w:
+...                     f1.append(w.split()[2])
+... 
+
+
+>>> pc = []
+>>> rc = []
+>>> f1c = []
+>>> for i,j,k in zip(p,r,f1):
+...     pc.append(float(i))
+...     rc.append(float(j))
+...     f1c.append(float(k))
+
+
+>>> np.mean(pc)
+0.6910307
+>>> np.mean(rc)
+0.49225780000000008
+>>> np.mean(f1)
+>>> np.mean(f1c)
+0.57405139999999988
+

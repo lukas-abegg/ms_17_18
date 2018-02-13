@@ -1,19 +1,16 @@
-#! /usr/bin/python3
-
 import nltk
+from nltk.tokenize import word_tokenize
 import numpy as np
 import sklearn.feature_extraction.text as sk_txt
 from sklearn.model_selection import train_test_split
 from sklearn.model_selection import KFold
-from sklearn.metrics import f1_score
 import sklearn_crfsuite as sk_crf
 from sklearn_crfsuite import metrics
+
+import string
 import sys
 import pickle
-
-
-# grid-search
-# More Feature Engineering!
+import scipy
 
 
 # read document
@@ -43,24 +40,6 @@ def get_tokens_from_input_file(lines):
     return np.array([words, tags, pos_tags])
 
 
-# Generate Features:
-# tfidf
-def get_tfidf(data, is_train=True):
-    if is_train:
-        bow = sk_txt.CountVectorizer(ngram_range=(1, 2), stop_words='english', lowercase=True)
-        tfidf = sk_txt.TfidfTransformer()
-        bow_t = bow.fit_transform(data[0], data[1])
-        tfidf_t = tfidf.fit_transform(bow_t)
-        pickle.dump(bow, open('bow.model', 'wb'))
-        pickle.dump(tfidf, open('tfidf.model', 'wb'))
-    else:
-        bow = pickle.load(open('bow.model', 'rb'))
-        tfidf = pickle.load(open('tfidf.model', 'rb'))
-        bow_t = bow.transform(data[0])
-        tfidf_t = tfidf.transform(bow_t)
-    return tfidf_t
-
-
 # Extract features
 # word before, word behind
 # POS-Tag before, POS-Tag after
@@ -68,13 +47,13 @@ def get_tfidf(data, is_train=True):
 # contains numbers
 # contains special characters
 # ..
-def generate_feature_dicts(tokens, tfidf):
-    x = tokens[0]
+def generate_feature_dicts(tokens):
+    X = tokens[0]
     pos = tokens[2]
 
     features = []
 
-    for i, w in enumerate(x):
+    for i, w in enumerate(X):
         feat = {
             'word.lower': w.lower(),
             'isupper': w.isupper(),
@@ -82,7 +61,7 @@ def generate_feature_dicts(tokens, tfidf):
             'postag': pos[i],
         }
         if i > 0:
-            last_w = x[i - 1]
+            last_w = X[i - 1]
             last_pos = pos[i - 1]
             feat.update(
                 {
@@ -91,8 +70,8 @@ def generate_feature_dicts(tokens, tfidf):
                     'last_postag': last_pos
                 }
             )
-        if i < len(x) - 1:
-            next_w = x[i + 1]
+        if i < len(X) - 1:
+            next_w = X[i + 1]
             next_pos = pos[i + 1]
             feat.update(
                 {
@@ -106,9 +85,8 @@ def generate_feature_dicts(tokens, tfidf):
     return features
 
 
-def get_features(tokens, is_train=True):
-    tfidf = get_tfidf(tokens, is_train=is_train)
-    features = generate_feature_dicts(tokens, tfidf)
+def getFeatures(tokens):
+    features = generate_feature_dicts(tokens)
     return features
 
 
@@ -116,7 +94,7 @@ def get_features(tokens, is_train=True):
 def train(trainpath, modelname):
     # extract features
     train_tokens = read_tokens_from_input_file(trainpath)
-    train_features = get_features(train_tokens)
+    train_features = getFeatures(train_tokens)
     # fitting
     crf = sk_crf.CRF(algorithm='lbfgs', c1=0.1, c2=0.1, max_iterations=100, all_possible_transitions=True)
     crf.fit([train_features], [train_tokens[1]])
@@ -124,14 +102,69 @@ def train(trainpath, modelname):
     pickle.dump(crf, open(modelname, 'wb'))
 
 
+def build_dict():
+    with open("data/dictionary_genenames_multitoken.txt", "r", encoding='latin-1') as f:
+        tokens_B, tokens_I = get_tokens_from_list(f.readlines())
+    return tokens_B, tokens_I
+
+
+def get_tokens_from_list(lines):
+    tokens_B = []
+    tokens_I = []
+    for line in lines:
+        if len(line) > 0:
+            found_tokens = word_tokenize(line)
+            if len(found_tokens) == 1:
+                tokens_B.append(found_tokens[0])
+            if len(found_tokens) > 1:
+                tokens_B.append(found_tokens[0])
+                for elem in found_tokens[1:]:
+                    tokens_I.append(elem)
+    return tokens_B, tokens_I
+
+
+def build_stopwords():
+    stopwords_list = []
+    path = "data/english_stop_words.txt"
+    with open(path, "r", encoding='latin-1') as f:
+        for token in get_tokens_from_list(f.readlines()):
+            stopwords_list.append(token)
+    return stopwords_list
+
+
+def build_punctuations():
+    punctuation = string.punctuation
+    return punctuation
+
+
+def get_tokens_from_list_for_stopwords(lines):
+    tokens = []
+    for line in lines:
+        if len(line) > 0:
+            found_tokens = word_tokenize(line)
+            if len(found_tokens) == 1:
+                tokens.append(found_tokens[0])
+    return tokens
+
+
 def annotate_doc(path, labels, outpath):
+    tokens_B, tokens_I = build_dict()
+    stopwords = build_stopwords()
+    punctuations = build_punctuations()
     nf = open(outpath, 'w')
     i = 0
     with open(path, "r", encoding='latin-1') as f:
         for j, line in enumerate(f.readlines()):
             found_tokens = nltk.word_tokenize(line)
             if len(found_tokens) == 2:
-                nf.write("{}\t{}\n".format(found_tokens[0], labels[0][i]))
+                if (found_tokens[0] in stopwords) or (found_tokens[0] in punctuations):
+                    nf.write("{}\t{}\n".format(found_tokens[0], "O"))
+                elif (found_tokens[0] in tokens_B) and (found_tokens[0] not in tokens_I):
+                    nf.write("{}\t{}\n".format(found_tokens[0], "B-protein"))
+                elif (found_tokens[0] in tokens_I) and (found_tokens[0] not in tokens_B):
+                    nf.write("{}\t{}\n".format(found_tokens[0], "I-protein"))
+                else:
+                    nf.write("{}\t{}\n".format(found_tokens[0], labels[0][i]))
                 i += 1
             else:
                 nf.write(line)
@@ -142,43 +175,43 @@ def annotate_doc(path, labels, outpath):
 def predict(testpath, outpath, modelname):
     # extract features
     test_tokens = read_tokens_from_input_file(testpath)
-    test_features = get_features(test_tokens, is_train=False)
+    test_features = getFeatures(test_tokens)
     # predicting
     crf = pickle.load(open(modelname, 'rb'))
     label_pred = crf.predict([test_features])
     annotate_doc(testpath, label_pred, outpath)
 
 
-def fscore_crf(y, y_pred, labels):
+def fscore_crf(Y, y_pred, labels):
     labels.remove('O')
-    return metrics.flat_f1_score(y, y_pred, average='weighted', labels=labels)
+    return metrics.flat_f1_score(Y, y_pred, average='weighted', labels=labels)
 
 
-def k_cross_validate(x_tr, y_tr, pos_tr, do_annotating=False):
+def k_cross_validate(Xtr, Ytr, POStr, do_annotating=False):
     k_fold = KFold(n_splits=10)
     crf = sk_crf.CRF(algorithm='lbfgs', c1=0.1, c2=0.1, max_iterations=100, all_possible_transitions=True)
     scores = []
 
-    for i, (train, validate) in enumerate(k_fold.split(x_tr)):
-        x_tr_cv, x_val_cv = x_tr[train], x_tr[validate]
-        y_tr_cv, y_val_cv = y_tr[train], y_tr[validate]
-        pos_tr_cv, pos_val_cv = pos_tr[train], pos_tr[validate]
+    for i, (train, validate) in enumerate(k_fold.split(Xtr)):
+        Xtr_cv, Xval_cv = Xtr[train], Xtr[validate]
+        Ytr_cv, Yval_cv = Ytr[train], Ytr[validate]
+        POStr_cv, POSval_cv = POStr[train], POStr[validate]
 
-        f_tr = get_features([x_tr_cv, y_tr_cv, pos_tr_cv])
-        f_val = get_features([x_val_cv, y_val_cv, pos_val_cv], is_train=False)
+        Ftr = getFeatures([Xtr_cv, Ytr_cv, POStr_cv])
+        Fval = getFeatures([Xval_cv, Yval_cv, POSval_cv])
 
-        crf.fit([f_tr], [y_tr_cv])
-        pred = crf.predict([f_val])
+        crf.fit([Ftr], [Ytr_cv])
+        pred = crf.predict([Fval])
 
-        scores.append(fscore_crf([y_val_cv], pred, list(crf.classes_)))
-        print(str(i+1)+'-fold Score:', scores)
+        scores.append(fscore_crf([Yval_cv], pred, list(crf.classes_)))
+        print(str(i + 1) + '-fold Score:', scores)
 
         if do_annotating:
-            original = [x_val_cv.tolist(), y_val_cv.tolist()]
-            prediction = [x_val_cv.tolist(), pred[0]]
-            o = open('validation/'+str(i+1)+'fold_original.iob', "w")
-            p = open('validation/'+str(i+1)+'fold_prediction.iob', "w")
-            for j, _ in enumerate(x_val_cv.tolist()):
+            original = [Xval_cv.tolist(), Yval_cv.tolist()]
+            prediction = [Xval_cv.tolist(), pred[0]]
+            o = open('validation/' + str(i + 1) + 'fold_original.iob', "w")
+            p = open('validation/' + str(i + 1) + 'fold_prediction.iob', "w")
+            for j, _ in enumerate(Xval_cv.tolist()):
                 o.write("{}\t{}\n".format(original[0][j], original[1][j]))
                 p.write("{}\t{}\n".format(prediction[0][j], prediction[1][j]))
             o.close()
@@ -191,15 +224,15 @@ def validate(path, do_annotating=False):
     if do_annotating:
         k_cross_validate(tokens[0], tokens[1], tokens[2], do_annotating=True)
     else:
-        x_tr, x_ts, y_tr, y_ts, pos_tr, pos_ts = train_test_split(tokens[0], tokens[1], tokens[2], test_size=0.3)
-        k_cross_validate(x_tr, y_tr, pos_tr)
-        # train/predict x_ts/y_ts
-        f_tr = get_features([x_tr, y_tr, pos_tr])
+        Xtr, Xts, Ytr, Yts, POStr, POSts = train_test_split(tokens[0], tokens[1], tokens[2], test_size=0.3)
+        k_cross_validate(Xtr, Ytr, POStr)
+        # train/predict Xts/Yts
+        Ftr = getFeatures([Xtr, Ytr, POStr])
         crf = sk_crf.CRF(algorithm='lbfgs', c1=0.1, c2=0.1, max_iterations=100, all_possible_transitions=True)
-        crf.fit([f_tr], [y_tr])
-        f_ts = get_features([x_ts, y_ts, pos_ts], is_train=False)
-        y_pred = crf.predict([f_ts])
-        print("F1-Score on Testset:", fscore_crf([y_ts], y_pred, list(crf.classes_)))
+        crf.fit([Ftr], [Ytr])
+        Fts = getFeatures([Xts, Yts, POSts])
+        y_pred = crf.predict([Fts])
+        print("F1-Score on Testset:", fscore_crf([Yts], y_pred, list(crf.classes_)))
 
 
 # train: python3 crf_ner.py train data/training5_annotated.iob crf.model

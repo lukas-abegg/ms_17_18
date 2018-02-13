@@ -1,0 +1,86 @@
+
+=> Average:
+Precision: 0.691030
+Recall: 0.492257
+F1 Score: 0.574051
+
+------------------k-Fold-Results
+
+True Positives:		180.0
+False Positives:	92.0
+False Negatives:	213.0
+Precision:			0.661765
+Recall:				0.458015
+F1 Score:			0.541353
+
+
+True Positives:		277.0
+False Positives:	108.0
+False Negatives:	312.0
+Precision:			0.719481
+Recall:				0.470289
+F1 Score:			0.568789
+
+
+True Positives:		125.0
+False Positives:	63.0
+False Negatives:	109.0
+Precision:			0.664894
+Recall:				0.534188
+F1 Score:			0.592417
+
+
+True Positives:		231.0
+False Positives:	80.0
+False Negatives:	199.0
+Precision:			0.742765
+Recall:				0.537209
+F1 Score:			0.623482
+
+
+True Positives:		261.0
+False Positives:	130.0
+False Negatives:	370.0
+Precision:			0.667519
+Recall:				0.413629
+F1 Score:			0.510763
+
+
+True Positives:		310.0
+False Positives:	113.0
+False Negatives:	306.0
+Precision:			0.732861
+Recall:				0.503247
+F1 Score:			0.596728
+
+
+True Positives:		247.0
+False Positives:	119.0
+False Negatives:	281.0
+Precision:			0.674863
+Recall:				0.467803
+F1 Score:			0.552573
+
+
+True Positives:		288.0
+False Positives:	114.0
+False Negatives:	282.0
+Precision:			0.716418
+Recall:				0.505263
+F1 Score:			0.592593
+
+
+True Positives:		333.0
+False Positives:	125.0
+False Negatives:	288.0
+Precision:			0.727074
+Recall:				0.536232
+F1 Score:			0.617238
+
+
+True Positives:		226.0
+False Positives:	149.0
+False Negatives:	229.0
+Precision:			0.602667
+Recall:				0.496703
+F1 Score:			0.544578

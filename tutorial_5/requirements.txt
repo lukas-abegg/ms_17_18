@@ -1,8 +1,14 @@
-#! /usr/bin/python3
-string
-ssl
-math
-typing
+sklearn
+
+sklearn_crfsuite
+
 pickle
-numpy
+
+scipy
+
 nltk
+
+numpy
+
+string
+
